@@ -5,9 +5,9 @@ import "@babylonjs/loaders";
 import "@babylonjs/inspector";
 
 import "./index.css";
-import { shouldExcludeMesh } from "./config/meshConfig";
 import { AnimationLoader } from "./components/AnimationLoader";
 import { createScene } from "./babylon/createScene";
+import { loadAvatar } from "./babylon/loadAvatar";
 
 declare global {
   interface Window {
@@ -93,71 +93,26 @@ function App() {
       if (disposed) return;
 
       // Load avatar GLB (served from /public)
-      BABYLON.SceneLoader.Append(
-        "/",
-        "ChrissBlender.glb",
-        scene,
-        () => {
-          if (disposed) return;
+      const avatarRoot = await loadAvatar(scene);
 
-          window.avatarRoot = scene.meshes[0];
+      if (disposed) return;
 
-          // Scale up the avatar if it was exported at 0.01 scale from Blender
-          if (window.avatarRoot && window.avatarRoot.scaling) {
-            const currentScale = window.avatarRoot.scaling.x;
-            if (currentScale === 0.01) {
-              window.avatarRoot.scaling = new BABYLON.Vector3(1, 1, 1);
-              console.log("[Avatar] Scaled avatar from 0.01 to 1.0");
-            }
-          }
-
-          scene.meshes.forEach((m: any) => {
-            // Check if mesh should be excluded
-            if (shouldExcludeMesh(m.name)) {
-              m.setEnabled(false);
-              console.log(`[MeshConfig] Excluded mesh: ${m.name}`);
-              return;
-            }
-
-            m.alwaysSelectAsActiveMesh = true;
-
-            const mat: any = m.material;
-            if (!mat) return;
-
-            const n = (m.name + " " + mat.name).toLowerCase();
-
-            if (n.includes("hair")) {
-              mat.backFaceCulling = true;
-              mat.alphaMode = BABYLON.Engine.ALPHA_COMBINE;
-              m.renderingGroupId = 0;
-
-              if ("transparencyMode" in mat) {
-                mat.transparencyMode = (BABYLON as any).PBRMaterial.PBRMATERIAL_ALPHABLEND;
-              }
-            } else if (n.includes("beard") || n.includes("brow")) {
-              mat.roughness = 0.6;
-            } else if (n.includes("scalp")) {
-              m.renderingGroupId = 0;
-              m.alphaIndex = 0;
-            }
-          });
+      window.avatarRoot = avatarRoot;
           
-          // Hook your features exactly like the HTML
-          const animDropHandler = window.setupAnimDrop?.(scene, window.avatarRoot, { autoStart: true, speedRatio: 1.0 });
+      // Hook your features exactly like the HTML
+      const animDropHandler = window.setupAnimDrop?.(scene, window.avatarRoot, { autoStart: true, speedRatio: 1.0 });
           animDropHandlerRef.current = animDropHandler;
           
-          window.setupJumpToAvatar?.(scene, window.avatarRoot, { key: "j" });
+      window.setupJumpToAvatar?.(scene, window.avatarRoot, { key: "j" });
           
-          // Store the morph handler for programmatic access
-          const morphHandler = window.setupJsonMorphDrop?.(scene, window.avatarRoot, {
-            loop: true,
-            mappingUrl: "/CCARKitMapping.csv",
-          });
-          morphHandlerRef.current = morphHandler;
+      // Store the morph handler for programmatic access
+      const morphHandler = window.setupJsonMorphDrop?.(scene, window.avatarRoot, {
+        loop: true,
+        mappingUrl: "/CCARKitMapping.csv",
+      });
+      morphHandlerRef.current = morphHandler;
 
-          setIsReady(true);
-        }
-      );
+      setIsReady(true);
 
       engine.runRenderLoop(() => scene.render());
     };
