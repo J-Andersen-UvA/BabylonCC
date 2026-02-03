@@ -8,6 +8,7 @@ import "./index.css";
 import { AnimationLoader } from "./components/AnimationLoader";
 import { createScene } from "./babylon/createScene";
 import { loadAvatar } from "./babylon/loadAvatar";
+import { createAnimationController } from "./babylon/animationController";
 
 declare global {
   interface Window {
@@ -23,8 +24,7 @@ declare global {
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<BABYLON.Scene | null>(null);
-  const morphHandlerRef = useRef<any>(null);
-  const animDropHandlerRef = useRef<any>(null);
+  const animationControllerRef = useRef<any>(null);
   const [isReady, setIsReady] = useState(false);
 
   // Parse URL parameters for animation scaling
@@ -39,36 +39,27 @@ function App() {
   const urlParams = getUrlParams();
 
   const handleSkeletalLoad = (file: File) => {
-    // Use the animDrop.js handler for skeletal animations
-    if (!animDropHandlerRef.current || !animDropHandlerRef.current.loadFile) {
-      console.error("[AnimLoader] animDrop handler not ready");
+    const controller = animationControllerRef.current;
+    if (!controller) {
+      console.error("[AnimLoader] Animation controller not ready");
       return;
     }
 
-    console.log("[AnimLoader] Loading skeletal animation:", file.name);
-    console.log("[AnimLoader] Skeletal scale multiplier:", urlParams.skeletalScale);
-    animDropHandlerRef.current.loadFile(file, { scaleMultiplier: urlParams.skeletalScale });
+    controller.loadSkeletal(file, { scaleMultiplier: urlParams.skeletalScale });
   };
 
   const handleBlendshapeLoad = (file: File) => {
-    const handler = morphHandlerRef.current;
-    if (!handler || !handler.loadFile) return;
+    const controller = animationControllerRef.current;
+    if (!controller) return;
 
-    console.log("[AnimLoader] Loading blendshape animation:", file.name);
-    handler.loadFile(file);
+    controller.loadBlendshape(file);
   };
+
   const handlePlayAll = () => {
-    console.log("[AnimLoader] Playing all animations");
-    
-    // Play skeletal animations
-    if (animDropHandlerRef.current && animDropHandlerRef.current.play) {
-      animDropHandlerRef.current.play();
-    }
-    
-    // Play morph animations
-    if (morphHandlerRef.current && morphHandlerRef.current.play) {
-      morphHandlerRef.current.play();
-    }
+    const controller = animationControllerRef.current;
+    if (!controller) return;
+
+    controller.playAll();
   };
 
   useEffect(() => {
@@ -84,12 +75,6 @@ function App() {
     window.BABYLON = BABYLON;
 
     const boot = async () => {
-      // Load your legacy helper scripts (attach functions to window.*)
-      await import("./helpers/retargetBlendshapes.js");
-      await import("./helpers/animDrop.js");
-      await import("./helpers/jumpToAvatar.js");
-      await import("./helpers/jsonAnim.js");
-
       if (disposed) return;
 
       // Load avatar GLB (served from /public)
@@ -98,19 +83,13 @@ function App() {
       if (disposed) return;
 
       window.avatarRoot = avatarRoot;
-          
-      // Hook your features exactly like the HTML
-      const animDropHandler = window.setupAnimDrop?.(scene, window.avatarRoot, { autoStart: true, speedRatio: 1.0 });
-          animDropHandlerRef.current = animDropHandler;
-          
-      window.setupJumpToAvatar?.(scene, window.avatarRoot, { key: "j" });
-          
-      // Store the morph handler for programmatic access
-      const morphHandler = window.setupJsonMorphDrop?.(scene, window.avatarRoot, {
-        loop: true,
+
+      animationControllerRef.current = await createAnimationController(scene, avatarRoot, {
         mappingUrl: "/CCARKitMapping.csv",
+        autoStart: true,
+        speedRatio: 1.0,
+        jumpKey: "j",
       });
-      morphHandlerRef.current = morphHandler;
 
       setIsReady(true);
 

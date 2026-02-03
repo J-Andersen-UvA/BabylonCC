@@ -1,0 +1,84 @@
+import type * as BABYLON from "@babylonjs/core";
+
+interface AnimationControllerOptions {
+  mappingUrl: string;
+  autoStart?: boolean;
+  speedRatio?: number;
+  jumpKey?: string;
+}
+
+interface SkeletalLoadOptions {
+  scaleMultiplier?: number;
+}
+
+export interface AnimationController {
+  loadSkeletal: (file: File, options?: SkeletalLoadOptions) => void;
+  loadBlendshape: (file: File) => void;
+  playAll: () => void;
+}
+
+declare global {
+  interface Window {
+    setupAnimDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
+    setupJumpToAvatar?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
+    setupJsonMorphDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
+  }
+}
+
+export async function createAnimationController(
+  scene: BABYLON.Scene,
+  avatarRoot: any,
+  options: AnimationControllerOptions
+): Promise<AnimationController> {
+  await import("../helpers/retargetBlendshapes.js");
+  await import("../helpers/animDrop.js");
+  await import("../helpers/jumpToAvatar.js");
+  await import("../helpers/jsonAnim.js");
+
+  const animDropHandler = window.setupAnimDrop?.(scene, avatarRoot, {
+    autoStart: options.autoStart ?? true,
+    speedRatio: options.speedRatio ?? 1.0,
+  });
+
+  window.setupJumpToAvatar?.(scene, avatarRoot, { key: options.jumpKey ?? "j" });
+
+  const morphHandler = window.setupJsonMorphDrop?.(scene, avatarRoot, {
+    loop: true,
+    mappingUrl: options.mappingUrl,
+  });
+
+  return {
+    loadSkeletal: (file: File, loadOptions?: SkeletalLoadOptions) => {
+      if (!animDropHandler?.loadFile) {
+        console.error("[AnimLoader] animDrop handler not ready");
+        return;
+      }
+
+      console.log("[AnimLoader] Loading skeletal animation:", file.name);
+      if (loadOptions?.scaleMultiplier) {
+        console.log("[AnimLoader] Skeletal scale multiplier:", loadOptions.scaleMultiplier);
+      }
+
+      animDropHandler.loadFile(file, {
+        scaleMultiplier: loadOptions?.scaleMultiplier ?? 1.0,
+      });
+    },
+    loadBlendshape: (file: File) => {
+      if (!morphHandler?.loadFile) return;
+
+      console.log("[AnimLoader] Loading blendshape animation:", file.name);
+      morphHandler.loadFile(file);
+    },
+    playAll: () => {
+      console.log("[AnimLoader] Playing all animations");
+
+      if (animDropHandler?.play) {
+        animDropHandler.play();
+      }
+
+      if (morphHandler?.play) {
+        morphHandler.play();
+      }
+    },
+  };
+}
