@@ -2,28 +2,6 @@
 // Usage: setupAnimDrop(scene, avatarRoot, { autoStart: true })
 
 (function () {
-  function makeDropUI() {
-    const el = document.createElement("div");
-    el.id = "dropzone";
-    el.textContent = "Drop animation .glb/.gltf here";
-    Object.assign(el.style, {
-      position: "fixed",
-      left: "12px",
-      top: "12px",
-      zIndex: 9999,
-      padding: "10px 12px",
-      borderRadius: "10px",
-      background: "rgba(0,0,0,0.45)",
-      color: "#fff",
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "13px",
-      userSelect: "none",
-      border: "1px solid rgba(255,255,255,0.25)",
-      backdropFilter: "blur(6px)",
-    });
-    document.body.appendChild(el);
-    return el;
-  }
 
   function buildAvatarMaps(avatarRoot) {
     const nodeMap = new Map();
@@ -160,42 +138,33 @@
   window.setupAnimDrop = function setupAnimDrop(scene, avatarRoot, opts = {}) {
     if (!scene || !avatarRoot) throw new Error("setupAnimDrop(scene, avatarRoot) requires both arguments.");
 
-    // UI creation disabled - using React component instead
-    const ui = opts.createUI !== false ? null : null; // makeDropUI();
     const maps = buildAvatarMaps(avatarRoot);
     console.log("[Avatar] morphMap keys (sample):", Array.from(maps.morphMap.keys()).slice(0, 80));
     console.log("[Avatar] morphMap key count:", maps.morphMap.size);
     debugAvatarMorphs(avatarRoot, maps);
     let currentGroups = [];
 
-    function setUI(text) { if (ui) ui.textContent = text; }
-
     async function handleFile(file, fileOpts = {}) {
       console.log("[Drop] file=", file);
       if (!file) return;
       const name = (file.name || "").toLowerCase();
-      if (!name.endsWith(".glb") && !name.endsWith(".gltf")) {
-        setUI("Drop a .glb or .gltf file");
-        return;
-      }
+      if (!name.endsWith(".glb") && !name.endsWith(".gltf")) return;
 
       // Merge file-specific options with global options
       const mergedOpts = { ...opts, ...fileOpts };
 
-      setUI("Loading animations...");
       let container;
       try {
         container = await loadDroppedFile(scene, file);
       } catch (e) {
         console.error(e);
-        setUI("Load failed (see console)");
         return;
       }
 
       const srcGroups = container.animationGroups || [];
       if (!srcGroups.length) {
         container.dispose();
-        setUI("No animations found in file");
+        console.warn("[Drop] No animations found in file");
         return;
       }
 
@@ -240,19 +209,8 @@
 
       container.dispose(); // we only needed its animations
 
-      // Don't auto-play when called programmatically
-      // Only auto-play for drag-drop events
-      setUI(`Loaded ${currentGroups.length} anim group(s). (Drop another to replace)`);
+      console.log(`[Drop] Loaded ${currentGroups.length} anim group(s)`);
     }
-
-    // Drag/drop events
-    window.addEventListener("dragover", (e) => { e.preventDefault(); setUI("Release to load animation"); });
-    window.addEventListener("dragleave", (e) => { e.preventDefault(); setUI("Drop animation .glb/.gltf here"); });
-    window.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      await handleFile(file);
-    });
 
     // Optional: expose controls
     return {

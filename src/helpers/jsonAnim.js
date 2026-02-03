@@ -94,30 +94,10 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
     try { group.dispose(); } catch {}
   }
 
-  function makeDropUI() {
-    const el = document.createElement("div");
-    el.textContent = "Drop morph anim JSON";
-    Object.assign(el.style, {
-      position: "fixed",
-      left: "12px",
-      top: "12px",
-      zIndex: 9999,
-      padding: "8px 10px",
-      background: "rgba(0,0,0,0.45)",
-      color: "#fff",
-      fontSize: "12px",
-      borderRadius: "8px",
-      userSelect: "none",
-    });
-    document.body.appendChild(el);
-    return el;
-  }
 
   window.setupJsonMorphDrop = function setupJsonMorphDrop(scene, avatarRoot, opts = {}) {
     if (!scene || !avatarRoot) throw new Error("scene + avatarRoot required");
 
-    // UI creation disabled - using React component instead
-    const ui = opts.createUI !== false ? null : null; // makeDropUI();
     let currentGroup = null;
     let nameMap = null;
 
@@ -136,8 +116,6 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
     async function handleFile(file) {
       console.log("[jsonAnim] file dropped:", file?.name);
       if (!file || !file.name.toLowerCase().endsWith(".json")) return;
-
-      if (ui) ui.textContent = "Loading…";
 
       const json = JSON.parse(await file.text());
       stopAndDispose(currentGroup);
@@ -218,15 +196,8 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
       // Don't auto-play, let the UI control playback
       if (typeof opts.speedRatio === "number") group.speedRatio = opts.speedRatio;
 
-      if (ui) ui.textContent = "Morph anim loaded";
       console.log("[jsonAnim] targetedAnimations:", group.targetedAnimations.length);
     }
-
-    window.addEventListener("dragover", e => e.preventDefault(), { capture: true });
-    window.addEventListener("drop", e => {
-      e.preventDefault();
-      handleFile(e.dataTransfer?.files?.[0]);
-    }, { capture: true });
 
     return {
       stop: () => currentGroup?.stop(),
