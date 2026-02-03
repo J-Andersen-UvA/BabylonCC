@@ -116,7 +116,8 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
   window.setupJsonMorphDrop = function setupJsonMorphDrop(scene, avatarRoot, opts = {}) {
     if (!scene || !avatarRoot) throw new Error("scene + avatarRoot required");
 
-    const ui = makeDropUI();
+    // UI creation disabled - using React component instead
+    const ui = opts.createUI !== false ? null : null; // makeDropUI();
     let currentGroup = null;
     let nameMap = null;
 
@@ -136,7 +137,7 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
       console.log("[jsonAnim] file dropped:", file?.name);
       if (!file || !file.name.toLowerCase().endsWith(".json")) return;
 
-      ui.textContent = "Loading…";
+      if (ui) ui.textContent = "Loading…";
 
       const json = JSON.parse(await file.text());
       stopAndDispose(currentGroup);
@@ -156,11 +157,24 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
         const pairs = curvePairs(json, srcName);
         if (!pairs || pairs.length < 2) continue;
 
-        const mappedName = (nameMap?.get(srcName.toLowerCase()) || srcName).toLowerCase();
-        const targets = morphMap.get(mappedName);
+        const mappedRaw = nameMap?.get(srcName.toLowerCase()) || srcName;
+        const mappedNames = String(mappedRaw)
+          .split("|")
+          .map(n => n.trim().toLowerCase())
+          .filter(Boolean);
 
-        if (!targets || targets.length === 0) {
-          if (unmatched.length < 10) console.log("[jsonAnim] no target for:", srcName, "->", mappedName);
+        const targetSet = new Set();
+        for (const name of mappedNames) {
+          const targets = morphMap.get(name);
+          if (targets && targets.length) {
+            targets.forEach(t => targetSet.add(t));
+          }
+        }
+
+        const targets = Array.from(targetSet);
+
+        if (targets.length === 0) {
+          if (unmatched.length < 10) console.log("[jsonAnim] no target for:", srcName, "->", mappedRaw);
           unmatched.push(srcName);
           continue;
         }
@@ -201,10 +215,10 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
 
       currentGroup = group;
 
-      group.start(opts.loop !== false, 1.0);
+      // Don't auto-play, let the UI control playback
       if (typeof opts.speedRatio === "number") group.speedRatio = opts.speedRatio;
 
-      ui.textContent = "Morph anim playing";
+      if (ui) ui.textContent = "Morph anim loaded";
       console.log("[jsonAnim] targetedAnimations:", group.targetedAnimations.length);
     }
 
@@ -216,8 +230,13 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
 
     return {
       stop: () => currentGroup?.stop(),
-      play: () => currentGroup?.play(),
+      play: () => {
+        if (currentGroup) {
+          currentGroup.start(opts.loop !== false, 1.0);
+        }
+      },
       dispose: () => stopAndDispose(currentGroup),
+      loadFile: handleFile, // Expose for programmatic loading
     };
   };
 })();

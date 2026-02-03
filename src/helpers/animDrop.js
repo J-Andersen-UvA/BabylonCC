@@ -57,6 +57,7 @@
 
   function retargetAnimationGroup(srcGroup, maps, opts) {
     const dst = new BABYLON.AnimationGroup(srcGroup.name + "_retarget", maps.scene);
+    const scaleMultiplier = opts.scaleMultiplier || 1.0;
 
     for (const ta of srcGroup.targetedAnimations) {
       const anim = ta.animation;
@@ -84,7 +85,34 @@
         newTarget = maps.nodeMap.get(tgt.name) || null;
       }
 
-      if (newTarget) dst.addTargetedAnimation(anim, newTarget);
+      if (newTarget) {
+        // Scale position/translation animations if multiplier is not 1.0
+        if (scaleMultiplier !== 1.0 && anim.targetProperty === "position") {
+          const scaledAnim = anim.clone();
+          const keys = scaledAnim.getKeys();
+          const newKeys = keys.map(key => {
+            if (key.value && key.value.x !== undefined && key.value.y !== undefined && key.value.z !== undefined) {
+              // It's a Vector3, scale it
+              return {
+                frame: key.frame,
+                value: new BABYLON.Vector3(
+                  key.value.x * scaleMultiplier,
+                  key.value.y * scaleMultiplier,
+                  key.value.z * scaleMultiplier
+                ),
+                inTangent: key.inTangent,
+                outTangent: key.outTangent
+              };
+            }
+            return key;
+          });
+          scaledAnim.setKeys(newKeys);
+          dst.addTargetedAnimation(scaledAnim, newTarget);
+          console.log(`[ScaleAnim] Scaled position animation by ${scaleMultiplier}`);
+        } else {
+          dst.addTargetedAnimation(anim, newTarget);
+        }
+      }
       console.log(`[RetargetMorph] matched=${morphMatched} unmatched=${morphUnmatched}`);
     }
     
@@ -132,16 +160,17 @@
   window.setupAnimDrop = function setupAnimDrop(scene, avatarRoot, opts = {}) {
     if (!scene || !avatarRoot) throw new Error("setupAnimDrop(scene, avatarRoot) requires both arguments.");
 
-    const ui = makeDropUI();
+    // UI creation disabled - using React component instead
+    const ui = opts.createUI !== false ? null : null; // makeDropUI();
     const maps = buildAvatarMaps(avatarRoot);
     console.log("[Avatar] morphMap keys (sample):", Array.from(maps.morphMap.keys()).slice(0, 80));
     console.log("[Avatar] morphMap key count:", maps.morphMap.size);
     debugAvatarMorphs(avatarRoot, maps);
     let currentGroups = [];
 
-    function setUI(text) { ui.textContent = text; }
+    function setUI(text) { if (ui) ui.textContent = text; }
 
-    async function handleFile(file) {
+    async function handleFile(file, fileOpts = {}) {
       console.log("[Drop] file=", file);
       if (!file) return;
       const name = (file.name || "").toLowerCase();
@@ -149,6 +178,9 @@
         setUI("Drop a .glb or .gltf file");
         return;
       }
+
+      // Merge file-specific options with global options
+      const mergedOpts = { ...opts, ...fileOpts };
 
       setUI("Loading animations...");
       let container;
@@ -192,7 +224,7 @@
       currentGroups = [];
 
       for (const g of srcGroups) {
-        const rg = retargetAnimationGroup(g, maps, opts);
+        const rg = retargetAnimationGroup(g, maps, mergedOpts);
         currentGroups.push(rg);
       }
 
@@ -208,10 +240,8 @@
 
       container.dispose(); // we only needed its animations
 
-      if (opts.autoStart !== false) {
-        currentGroups.forEach(g => g.play(true));
-      }
-
+      // Don't auto-play when called programmatically
+      // Only auto-play for drag-drop events
       setUI(`Loaded ${currentGroups.length} anim group(s). (Drop another to replace)`);
     }
 
@@ -226,9 +256,17 @@
 
     // Optional: expose controls
     return {
-      play: (idx = 0) => currentGroups[idx]?.play(true),
+      play: (idx) => {
+        if (idx !== undefined) {
+          currentGroups[idx]?.play(true);
+        } else {
+          // Play all groups
+          currentGroups.forEach(g => g.play(true));
+        }
+      },
       stop: () => currentGroups.forEach(g => g.stop()),
       list: () => currentGroups.map(g => g.name),
+      loadFile: handleFile, // Expose for programmatic loading
     };
   };
 })();
