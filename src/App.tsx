@@ -7,6 +7,7 @@ import "@babylonjs/inspector";
 import "./index.css";
 import { shouldExcludeMesh } from "./config/meshConfig";
 import { AnimationLoader } from "./components/AnimationLoader";
+import { createScene } from "./babylon/createScene";
 
 declare global {
   interface Window {
@@ -76,26 +77,11 @@ function App() {
     let disposed = false;
 
     const canvas = canvasRef.current;
-    const engine = new BABYLON.Engine(canvas, true);
-    engine.setHardwareScalingLevel(1.5); // Render at 67% resolution for better FPS
-    const scene = new BABYLON.Scene(engine);
+    const { engine, scene, dispose: disposeScene } = createScene(canvas);
     sceneRef.current = scene;
 
     // Make BABYLON available to your legacy scripts (they reference global BABYLON)
     window.BABYLON = BABYLON;
-
-    // Default camera/light similar to createDefaultCameraOrLight(true,true,true)
-    scene.createDefaultCameraOrLight(true, true, true);
-
-    // Match your camera settings
-    const cam = scene.activeCamera as any;
-    if (cam) {
-      cam.alpha = Math.PI / 2;
-      cam.beta = 1.2;
-      cam.radius = 2.2;
-      cam.minZ = 0.001;
-      cam.lowerRadiusLimit = 0.005;
-    }
 
     const boot = async () => {
       // Load your legacy helper scripts (attach functions to window.*)
@@ -174,30 +160,6 @@ function App() {
       );
 
       engine.runRenderLoop(() => scene.render());
-
-      const onResize = () => engine.resize();
-      window.addEventListener("resize", onResize);
-
-      // Inspector hidden by default (performance), toggle with 'i' key
-      scene.debugLayer.hide();
-      window.addEventListener("keydown", (e) => {
-        if (e.key === "i" || e.key === "I") {
-          if (scene.debugLayer.isVisible()) {
-            scene.debugLayer.hide();
-          } else {
-            scene.debugLayer.show();
-          }
-        }
-      });
-
-      // Dragover prevent (matches your HTML)
-      const onDragOver = (e: DragEvent) => e.preventDefault();
-      window.addEventListener("dragover", onDragOver);
-
-      return () => {
-        window.removeEventListener("resize", onResize);
-        window.removeEventListener("dragover", onDragOver);
-      };
     };
 
     let cleanupHandlers: null | (() => void) = null;
@@ -212,6 +174,7 @@ function App() {
         cleanupHandlers?.();
       } catch {}
 
+      disposeScene();
       scene.dispose();
       engine.dispose();
     };
