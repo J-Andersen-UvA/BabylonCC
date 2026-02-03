@@ -95,7 +95,7 @@ console.log("[jsonAnim] VERSION 2026-02-02-4");
   }
 
 
-  window.setupJsonMorphDrop = function setupJsonMorphDrop(scene, avatarRoot, opts = {}) {
+  window.setupMorphAnimLoader = function setupMorphAnimLoader(scene, avatarRoot, opts = {}) {
     if (!scene || !avatarRoot) throw new Error("scene + avatarRoot required");
 
     let currentGroup = null;

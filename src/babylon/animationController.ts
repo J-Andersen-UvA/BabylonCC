@@ -19,9 +19,9 @@ export interface AnimationController {
 
 declare global {
   interface Window {
-    setupAnimDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
+    setupSkeletalAnimLoader?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
     setupJumpToAvatar?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
-    setupJsonMorphDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
+    setupMorphAnimLoader?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
   }
 }
 
@@ -31,18 +31,18 @@ export async function createAnimationController(
   options: AnimationControllerOptions
 ): Promise<AnimationController> {
   await import("../helpers/retargetBlendshapes.js");
-  await import("../helpers/animDrop.js");
+  await import("./skeletalAnimLoader.ts");
   await import("../helpers/jumpToAvatar.js");
   await import("../helpers/jsonAnim.js");
 
-  const animDropHandler = window.setupAnimDrop?.(scene, avatarRoot, {
+  const animDropHandler = window.setupSkeletalAnimLoader?.(scene, avatarRoot, {
     autoStart: options.autoStart ?? true,
     speedRatio: options.speedRatio ?? 1.0,
   });
 
   window.setupJumpToAvatar?.(scene, avatarRoot, { key: options.jumpKey ?? "j" });
 
-  const morphHandler = window.setupJsonMorphDrop?.(scene, avatarRoot, {
+  const morphHandler = window.setupMorphAnimLoader?.(scene, avatarRoot, {
     loop: true,
     mappingUrl: options.mappingUrl,
   });

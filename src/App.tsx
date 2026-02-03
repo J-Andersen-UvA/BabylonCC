@@ -15,9 +15,9 @@ declare global {
     BABYLON: typeof BABYLON;
     avatarRoot: any;
 
-    setupAnimDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
+    setupSkeletalAnimLoader?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
     setupJumpToAvatar?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
-    setupJsonMorphDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
+    setupMorphAnimLoader?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
   }
 }
 
