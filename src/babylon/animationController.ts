@@ -30,7 +30,6 @@ export async function createAnimationController(
   avatarRoot: any,
   options: AnimationControllerOptions
 ): Promise<AnimationController> {
-  await import("../helpers/retargetBlendshapes.js");
   await import("./skeletalAnimLoader.ts");
   await import("../helpers/jumpToAvatar.js");
   await import("./morphAnimLoader.ts");
