@@ -33,7 +33,7 @@ export async function createAnimationController(
   await import("../helpers/retargetBlendshapes.js");
   await import("./skeletalAnimLoader.ts");
   await import("../helpers/jumpToAvatar.js");
-  await import("../helpers/jsonAnim.js");
+  await import("./morphAnimLoader.ts");
 
   const animDropHandler = window.setupSkeletalAnimLoader?.(scene, avatarRoot, {
     autoStart: options.autoStart ?? true,
