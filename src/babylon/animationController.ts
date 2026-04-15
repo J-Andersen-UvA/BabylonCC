@@ -5,6 +5,7 @@ interface AnimationControllerOptions {
   autoStart?: boolean;
   speedRatio?: number;
   jumpKey?: string;
+  useNameMapping?: boolean;
 }
 
 interface SkeletalLoadOptions {
@@ -12,8 +13,8 @@ interface SkeletalLoadOptions {
 }
 
 export interface AnimationController {
-  loadSkeletal: (file: File, options?: SkeletalLoadOptions) => void;
-  loadBlendshape: (file: File) => void;
+  loadSkeletal: (file: File, options?: SkeletalLoadOptions) => Promise<void>;
+  loadBlendshape: (file: File) => Promise<void>;
   playAll: () => void;
 }
 
@@ -43,31 +44,35 @@ export async function createAnimationController(
 
   const morphHandler = window.setupMorphAnimLoader?.(scene, avatarRoot, {
     loop: true,
+    autoPlay: true,
     mappingUrl: options.mappingUrl,
+    useNameMapping: options.useNameMapping,
+    speedRatio: options.speedRatio ?? 1.0,
   });
 
   return {
-    loadSkeletal: (file: File, loadOptions?: SkeletalLoadOptions) => {
+    loadSkeletal: async (file: File, loadOptions?: SkeletalLoadOptions) => {
       if (!animDropHandler?.loadFile) {
-        console.error("[AnimLoader] animDrop handler not ready");
+        console.error("[AnimLoader] skeletal handler not ready");
         return;
       }
 
       console.log("[AnimLoader] Loading skeletal animation:", file.name);
-      if (loadOptions?.scaleMultiplier) {
-        console.log("[AnimLoader] Skeletal scale multiplier:", loadOptions.scaleMultiplier);
-      }
-
-      animDropHandler.loadFile(file, {
+      await animDropHandler.loadFile(file, {
         scaleMultiplier: loadOptions?.scaleMultiplier ?? 1.0,
       });
     },
-    loadBlendshape: (file: File) => {
-      if (!morphHandler?.loadFile) return;
+
+    loadBlendshape: async (file: File) => {
+      if (!morphHandler?.loadFile) {
+        console.error("[AnimLoader] morph handler not ready");
+        return;
+      }
 
       console.log("[AnimLoader] Loading blendshape animation:", file.name);
-      morphHandler.loadFile(file);
+      await morphHandler.loadFile(file);
     },
+
     playAll: () => {
       console.log("[AnimLoader] Playing all animations");
 

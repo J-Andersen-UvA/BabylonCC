@@ -4,6 +4,8 @@ type MorphLoaderOptions = {
   mappingUrl?: string;
   loop?: boolean;
   speedRatio?: number;
+  autoPlay?: boolean;
+  useNameMapping?: boolean;
 };
 
 declare global {
@@ -14,6 +16,7 @@ declare global {
       dispose: () => void;
       loadFile: (file: File) => Promise<void>;
     };
+    buildAvatarMorphMap?: (avatarRoot: any) => Map<string, BABYLON.MorphTarget[]>;
   }
 }
 
@@ -51,7 +54,6 @@ function parseSimpleCsvMapping(text: string) {
     const targets = hasHeader ? cols[idxTargets] : cols[1];
 
     if (!arkit || !targets) continue;
-
     map.set(arkit.toLowerCase(), targets);
   }
 
@@ -59,19 +61,51 @@ function parseSimpleCsvMapping(text: string) {
 }
 
 function buildMorphMapAllMeshes(avatarRoot: any) {
-  const map = new Map<string, BABYLON.MorphTarget[]>();
-  for (const mesh of avatarRoot.getChildMeshes(false)) {
-    const mtm = mesh.morphTargetManager as BABYLON.MorphTargetManager | null;
-    if (!mtm) continue;
-    for (let i = 0; i < mtm.numTargets; i++) {
-      const target = mtm.getTarget(i);
-      if (!target?.name) continue;
-      const key = target.name.toLowerCase();
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)?.push(target);
+  if (window.buildAvatarMorphMap) {
+    return window.buildAvatarMorphMap(avatarRoot);
+  }
+
+  return new Map<string, BABYLON.MorphTarget[]>();
+}
+
+function normalizeMorphName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/^ctrl_expressions[_\-]*/i, "")
+    .replace(/^head[_\-]wm\d+[_\-]normal[_\-]head[_\-]wm\d+[_\-]*/i, "")
+    .replace(/[_\-\s.]/g, "");
+}
+
+function findMorphTargets(morphMap: Map<string, BABYLON.MorphTarget[]>, mappedNames: string[]) {
+  const result = new Set<BABYLON.MorphTarget>();
+
+  for (const rawName of mappedNames) {
+    const name = rawName.toLowerCase();
+
+    const exact = morphMap.get(name);
+    if (exact?.length) {
+      exact.forEach(target => result.add(target));
+      continue;
+    }
+
+    const normalizedName = normalizeMorphName(name);
+
+    for (const [key, targets] of morphMap.entries()) {
+      const normalizedKey = normalizeMorphName(key);
+
+      if (
+        normalizedKey === normalizedName ||
+        normalizedKey.endsWith(normalizedName) ||
+        normalizedName.endsWith(normalizedKey) ||
+        normalizedKey.includes(normalizedName) ||
+        normalizedName.includes(normalizedKey)
+      ) {
+        targets.forEach(target => result.add(target));
+      }
     }
   }
-  return map;
+
+  return Array.from(result);
 }
 
 function curveNames(json: any) {
@@ -84,22 +118,30 @@ function curveNames(json: any) {
 function curvePairs(json: any, name: string) {
   if (json.curves?.[name]) return json.curves[name];
   if (json.morphCurves?.[name]) return json.morphCurves[name];
+
   if (Array.isArray(json.channels)) {
     const channel = json.channels.find((c: any) => c.name === name);
     if (!channel?.keys) return null;
     return channel.keys.map((k: any) => [k.t ?? k.time, k.v ?? k.value]);
   }
+
   return null;
 }
 
 function stopAndDispose(group?: BABYLON.AnimationGroup | null) {
   if (!group) return;
+
   try {
     group.stop();
   } catch {}
+
   try {
     group.dispose();
   } catch {}
+}
+
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v));
 }
 
 export function setupMorphAnimLoader(scene: BABYLON.Scene, avatarRoot: any, opts: MorphLoaderOptions = {}) {
@@ -108,16 +150,19 @@ export function setupMorphAnimLoader(scene: BABYLON.Scene, avatarRoot: any, opts
   let currentGroup: BABYLON.AnimationGroup | null = null;
   let nameMap: Map<string, string> | null = null;
 
-  (async () => {
+  const mappingPromise = (async () => {
     const url = opts.mappingUrl || "./CCARKitMapping.csv";
     const text = await tryLoadText(url);
+
     if (!text) {
       console.log("[morphAnim] mapping not found:", url);
-      return;
+      return null;
     }
-    nameMap = parseSimpleCsvMapping(text);
-    console.log("[morphAnim] mapping loaded:", url, "rows:", nameMap.size);
-    console.log("[morphAnim] mapping sample:", [...nameMap.entries()].slice(0, 10));
+
+    const loaded = parseSimpleCsvMapping(text);
+    console.log("[morphAnim] mapping loaded:", url, "rows:", loaded.size);
+    console.log("[morphAnim] mapping sample:", [...loaded.entries()].slice(0, 10));
+    return loaded;
   })();
 
   async function handleFile(file: File) {
@@ -129,8 +174,9 @@ export function setupMorphAnimLoader(scene: BABYLON.Scene, avatarRoot: any, opts
 
     const fps = Number.isFinite(json.fps) ? json.fps : 60;
     const morphMap = buildMorphMapAllMeshes(avatarRoot);
+    nameMap = nameMap ?? (await mappingPromise) ?? null;
 
-    console.log("[morphAnim] morphMap keys (sample):", [...morphMap.keys()].slice(0, 10));
+    console.log("[morphAnim] morphMap keys (sample):", [...morphMap.keys()].slice(0, 20));
     console.log("[morphAnim] morphMap key count:", morphMap.size);
 
     const group = new BABYLON.AnimationGroup("jsonMorphs", scene);
@@ -142,24 +188,22 @@ export function setupMorphAnimLoader(scene: BABYLON.Scene, avatarRoot: any, opts
       const pairs = curvePairs(json, srcName);
       if (!pairs || pairs.length < 2) continue;
 
-      const mappedRaw = nameMap?.get(srcName.toLowerCase()) || srcName;
+      const mappedRaw =
+        opts.useNameMapping === false
+          ? srcName
+          : nameMap?.get(srcName.toLowerCase()) || srcName;
+
       const mappedNames = String(mappedRaw)
         .split("|")
         .map(name => name.trim().toLowerCase())
         .filter(Boolean);
 
-      const targetSet = new Set<BABYLON.MorphTarget>();
-      for (const name of mappedNames) {
-        const targets = morphMap.get(name);
-        if (targets && targets.length) {
-          targets.forEach(target => targetSet.add(target));
-        }
-      }
-
-      const targets = Array.from(targetSet);
+      const targets = findMorphTargets(morphMap, mappedNames);
 
       if (targets.length === 0) {
-        if (unmatched.length < 10) console.log("[morphAnim] no target for:", srcName, "->", mappedRaw);
+        if (unmatched.length < 10) {
+          console.log("[morphAnim] no target for:", srcName, "->", mappedRaw, "mappedNames:", mappedNames);
+        }
         unmatched.push(srcName);
         continue;
       }
@@ -173,10 +217,27 @@ export function setupMorphAnimLoader(scene: BABYLON.Scene, avatarRoot: any, opts
 
       const maxT = keys[keys.length - 1].t;
       const timeIsSeconds = maxT <= 300;
+      const maxAbs = Math.max(...keys.map(k => Math.abs(k.v)));
+      const needsNormalization = maxAbs > 1.0;
+
+      console.log(
+        "[morphAnim] curve:",
+        srcName,
+        "mappedTo:",
+        mappedNames,
+        "targetCount:",
+        targets.length,
+        "min:",
+        Math.min(...keys.map(k => k.v)),
+        "max:",
+        Math.max(...keys.map(k => k.v)),
+        "normalize:",
+        needsNormalization
+      );
 
       for (const mt of targets) {
         const anim = new BABYLON.Animation(
-          `mt_${srcName}`,
+          `mt_${srcName}_${mt.name}`,
           "influence",
           fps,
           BABYLON.Animation.ANIMATIONTYPE_FLOAT,
@@ -186,7 +247,7 @@ export function setupMorphAnimLoader(scene: BABYLON.Scene, avatarRoot: any, opts
         anim.setKeys(
           keys.map(k => ({
             frame: timeIsSeconds ? k.t * fps : k.t,
-            value: k.v,
+            value: clamp01(needsNormalization ? k.v / 100.0 : k.v),
           }))
         );
 
@@ -197,19 +258,32 @@ export function setupMorphAnimLoader(scene: BABYLON.Scene, avatarRoot: any, opts
 
     console.log("[morphAnim] matched:", matched, "unmatched_count:", unmatched.length);
     console.log("[morphAnim] unmatched sample:", unmatched.slice(0, 25));
+    console.log("[morphAnim] targetedAnimations:", group.targetedAnimations.length);
+
+    if (group.targetedAnimations.length > 0) {
+      const first = group.targetedAnimations[0];
+      console.log("[morphAnim] first target:", first.target?.name);
+      console.log("[morphAnim] first property:", first.animation?.targetProperty);
+      console.log("[morphAnim] first keys sample:", first.animation?.getKeys()?.slice(0, 10));
+      group.normalize(0);
+    }
 
     currentGroup = group;
 
-    if (typeof opts.speedRatio === "number") group.speedRatio = opts.speedRatio;
+    if (typeof opts.speedRatio === "number") {
+      group.speedRatio = opts.speedRatio;
+    }
 
-    console.log("[morphAnim] targetedAnimations:", group.targetedAnimations.length);
+    if (opts.autoPlay !== false) {
+      group.start(opts.loop !== false, opts.speedRatio ?? 1.0);
+    }
   }
 
   return {
     stop: () => currentGroup?.stop(),
     play: () => {
       if (currentGroup) {
-        currentGroup.start(opts.loop !== false, 1.0);
+        currentGroup.start(opts.loop !== false, opts.speedRatio ?? 1.0);
       }
     },
     dispose: () => stopAndDispose(currentGroup),

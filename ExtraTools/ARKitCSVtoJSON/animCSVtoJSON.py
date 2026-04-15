@@ -43,6 +43,9 @@ def csv_to_morph_json(csv_path: str, out_path: str, fps_tc: float = 60.0):
     Path(out_path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 if __name__ == "__main__":
-    csv_to_morph_json("tools/M20250428_7897_260129_0_Device_f044REghAqIGqCGD_Zp16g_iPhone.csv",
-                      "morph_curves.json",
-                      fps_tc=60.0)
+    csv_to_morph_json("C:\\Users\\VICON\\Downloads\\testAnims\\M20240925_1912_260223_1_Device__i7AmUNFY2xZONqhqSa-qw_iPhone.csv",
+                        "M20240925_1912_260223_morphs_fps24.json",
+                        fps_tc=24.0)
+    # csv_to_morph_json("tools/M20250428_7897_260129_0_Device_f044REghAqIGqCGD_Zp16g_iPhone.csv",
+    #                   "morph_curves.json",
+    #                   fps_tc=60.0)
