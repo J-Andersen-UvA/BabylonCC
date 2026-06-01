@@ -62,27 +62,44 @@ window.buildAvatarMorphMap = buildAvatarMorphMapImpl;
 export async function loadAvatar(scene: BABYLON.Scene): Promise<BABYLON.TransformNode> {
   const result = await BABYLON.SceneLoader.ImportMeshAsync("", "/", "PalmerPolo.glb", scene);
 
-  const avatarRoot =
-    result.transformNodes[0] ||
-    (result.meshes.find(mesh => !mesh.parent) as unknown as BABYLON.TransformNode) ||
-    new BABYLON.TransformNode("avatarRoot", scene);
+  const avatarRoot = new BABYLON.TransformNode("Avatar", scene);
+  const importedNodes = [
+    ...result.transformNodes,
+    ...result.meshes,
+  ] as BABYLON.Node[];
+  const importedNodeSet = new Set(importedNodes);
+  const importedTopLevelNodes = importedNodes.filter(node => {
+    if (node === avatarRoot) return false;
+    return !node.parent || !importedNodeSet.has(node.parent);
+  });
 
-  if (!result.transformNodes.length) {
+  if (!importedTopLevelNodes.length) {
     result.meshes.forEach(mesh => {
-      if (mesh !== avatarRoot && !mesh.parent) {
+      if (!mesh.parent) {
         mesh.parent = avatarRoot;
       }
+    });
+  } else {
+    importedTopLevelNodes.forEach(node => {
+      node.parent = avatarRoot;
     });
   }
 
   console.log("[Avatar] imported meshes:", result.meshes.length);
   console.log("[Avatar] imported transformNodes:", result.transformNodes.length);
-  console.log("[Avatar] avatarRoot:", avatarRoot.name);
+  console.log(
+    "[Avatar] imported top-level nodes:",
+    importedTopLevelNodes.map(node => node.name)
+  );
+  console.log("[Avatar] avatarRoot container:", avatarRoot.name);
 
-  if ((avatarRoot as any).scaling?.x === 0.01) {
-    (avatarRoot as any).scaling.set(1, 1, 1);
-    console.log("[Avatar] Scaled avatar from 0.01 to 1.0");
-  }
+  importedTopLevelNodes.forEach(node => {
+    const transformNode = node as BABYLON.TransformNode;
+    if (transformNode.scaling?.x === 0.01) {
+      transformNode.scaling.set(1, 1, 1);
+      console.log(`[Avatar] Scaled imported root ${node.name} from 0.01 to 1.0`);
+    }
+  });
 
   result.meshes.forEach(mesh => {
     if (shouldExcludeMesh(mesh.name)) {

@@ -1,4 +1,5 @@
 import type * as BABYLON from "@babylonjs/core";
+import type { AvatarOrientationPreset } from "../components/AnimationLoader";
 
 interface AnimationControllerOptions {
   autoStart?: boolean;
@@ -8,6 +9,7 @@ interface AnimationControllerOptions {
 
 interface SkeletalLoadOptions {
   scaleMultiplier?: number;
+  orientationPreset?: AvatarOrientationPreset;
 }
 
 interface SkeletalLoadResult {
@@ -69,6 +71,7 @@ export async function createAnimationController(
 
       const result: SkeletalLoadResult | undefined = await skeletalHandler.loadFile(file, {
         scaleMultiplier: loadOptions?.scaleMultiplier ?? 1.0,
+        orientationPreset: loadOptions?.orientationPreset,
       });
       lastSkeletalDurationSeconds = result?.durationSeconds;
     },

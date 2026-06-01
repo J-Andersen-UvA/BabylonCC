@@ -5,12 +5,14 @@ import "@babylonjs/loaders";
 import "@babylonjs/inspector";
 
 import "./index.css";
-import { AnimationLoader } from "./components/AnimationLoader";
+import { AnimationLoader, type AvatarOrientationPreset } from "./components/AnimationLoader";
 import { MorphTargetPanel } from "./components/MorphTargetPanel";
 import { createScene } from "./babylon/createScene";
 import { loadAvatar } from "./babylon/loadAvatar";
 import { createAnimationController } from "./babylon/animationController";
 import { setupLighting } from "./babylon/lighting";
+
+const DEFAULT_AVATAR_ORIENTATION: AvatarOrientationPreset = "xMinus90Y180";
 
 declare global {
   interface Window {
@@ -39,14 +41,56 @@ function App() {
 
   const urlParams = getUrlParams();
 
-  const handleSkeletalLoad = async (file: File) => {
+  const orientationToEuler = (preset: AvatarOrientationPreset) => {
+    switch (preset) {
+      case "unrealToBabylon":
+      case "xMinus90Y180":
+        return new BABYLON.Vector3(-Math.PI / 2, Math.PI, 0);
+      case "xMinus90":
+        return new BABYLON.Vector3(-Math.PI / 2, 0, 0);
+      case "x90":
+        return new BABYLON.Vector3(Math.PI / 2, 0, 0);
+      case "y90":
+        return new BABYLON.Vector3(0, Math.PI / 2, 0);
+      case "yMinus90":
+        return new BABYLON.Vector3(0, -Math.PI / 2, 0);
+      case "y180":
+        return new BABYLON.Vector3(0, Math.PI, 0);
+      case "z180":
+        return new BABYLON.Vector3(0, 0, Math.PI);
+      case "none":
+      default:
+        return new BABYLON.Vector3(0, 0, 0);
+    }
+  };
+
+  const applyAvatarOrientation = (preset: AvatarOrientationPreset) => {
+    if (!avatarRoot) return;
+
+    const euler = orientationToEuler(preset);
+    avatarRoot.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(euler);
+    console.log("[Avatar] orientation preset:", preset, euler.toString());
+  };
+
+  const handleOrientationChange = (preset: AvatarOrientationPreset) => {
+    applyAvatarOrientation(preset);
+  };
+
+  const handleSkeletalLoad = async (
+    file: File,
+    options: { orientationPreset: AvatarOrientationPreset }
+  ) => {
     const controller = animationControllerRef.current;
     if (!controller) {
       console.error("[AnimLoader] Animation controller not ready");
       return;
     }
 
-    await controller.loadSkeletal(file, { scaleMultiplier: urlParams.skeletalScale });
+    applyAvatarOrientation(options.orientationPreset);
+    await controller.loadSkeletal(file, {
+      scaleMultiplier: urlParams.skeletalScale,
+      orientationPreset: options.orientationPreset,
+    });
   };
 
   const handleBlendshapeLoad = async (file: File) => {
@@ -96,6 +140,10 @@ function App() {
       if (disposed) return;
 
       window.avatarRoot = avatarRoot;
+      avatarRoot.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(
+        orientationToEuler(DEFAULT_AVATAR_ORIENTATION)
+      );
+
       setAvatarRoot(avatarRoot);
 
       animationControllerRef.current = await createAnimationController(scene, avatarRoot, {
@@ -141,6 +189,7 @@ function App() {
           <AnimationLoader
             onSkeletalLoad={handleSkeletalLoad}
             onBlendshapeLoad={handleBlendshapeLoad}
+            onOrientationChange={handleOrientationChange}
             onPlayAll={handlePlayAll}
           />
           <MorphTargetPanel

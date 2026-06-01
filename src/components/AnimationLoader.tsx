@@ -1,18 +1,48 @@
 import { useRef, useState } from "react";
 import "./AnimationLoader.css";
 
+export type AvatarOrientationPreset =
+  | "none"
+  | "unrealToBabylon"
+  | "x90"
+  | "xMinus90"
+  | "xMinus90Y180"
+  | "y90"
+  | "yMinus90"
+  | "y180"
+  | "z180";
+
+// const ORIENTATION_OPTIONS: Array<{ value: AvatarOrientationPreset; label: string }> = [
+//   { value: "none", label: "Default" },
+//   { value: "unrealToBabylon", label: "Unreal -> Babylon" },
+//   { value: "xMinus90", label: "Rotate X -90" },
+//   { value: "xMinus90Y180", label: "Rotate X -90 + Y 180" },
+//   { value: "x90", label: "Rotate X +90" },
+//   { value: "y180", label: "Rotate Y 180" },
+//   { value: "y90", label: "Rotate Y +90" },
+//   { value: "yMinus90", label: "Rotate Y -90" },
+//   { value: "z180", label: "Rotate Z 180" },
+// ];
+
 interface AnimationLoaderProps {
-  onSkeletalLoad?: (file: File) => Promise<void> | void;
+  onSkeletalLoad?: (file: File, options: { orientationPreset: AvatarOrientationPreset }) => Promise<void> | void;
   onBlendshapeLoad?: (file: File) => Promise<{ targetedAnimations?: number } | undefined> | void;
+  onOrientationChange?: (preset: AvatarOrientationPreset) => void;
   onPlayAll?: () => void;
 }
 
-export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }: AnimationLoaderProps) {
+export function AnimationLoader({
+  onSkeletalLoad,
+  onBlendshapeLoad,
+  // onOrientationChange,
+  onPlayAll,
+}: AnimationLoaderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [skeletalFile, setSkeletalFile] = useState<File | null>(null);
   const [blendshapeFile, setBlendshapeFile] = useState<File | null>(null);
   const [skeletalLoaded, setSkeletalLoaded] = useState(false);
   const [blendshapeLoaded, setBlendshapeLoaded] = useState(false);
+  const [orientationPreset] = useState<AvatarOrientationPreset>("xMinus90Y180");
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [statusType, setStatusType] = useState<"" | "success" | "error">("");
@@ -34,7 +64,7 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
     if (onSkeletalLoad) {
       setIsLoading(true);
       try {
-        await onSkeletalLoad(file);
+        await onSkeletalLoad(file, { orientationPreset });
         setSkeletalLoaded(true);
         setStatus("Skeletal animation loaded");
         setStatusType("success");
@@ -120,6 +150,28 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
 
       <div className={`anim-loader-panel ${isOpen ? "" : "hidden"}`}>
         <div className="anim-loader-title">Load Animations</div>
+
+        {/* <div className="anim-field">
+          <label className="anim-drop-label" htmlFor="avatar-orientation">
+            Avatar Orientation
+          </label>
+          <select
+            id="avatar-orientation"
+            className="anim-select"
+            value={orientationPreset}
+            onChange={(event) => {
+              const next = event.target.value as AvatarOrientationPreset;
+              setOrientationPreset(next);
+              onOrientationChange?.(next);
+            }}
+          >
+            {ORIENTATION_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div> */}
 
         {/* Skeletal Animation Drop Zone */}
         <div className="anim-drop-zone">

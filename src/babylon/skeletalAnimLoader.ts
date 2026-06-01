@@ -16,6 +16,7 @@ type SetupOptions = {
 
 type HandleFileOptions = {
   scaleMultiplier?: number;
+  orientationPreset?: string;
 };
 
 type LoadResult = {
@@ -266,6 +267,9 @@ export function setupSkeletalAnimLoader(scene: BABYLON.Scene, avatarRoot: any, o
     if (!name.endsWith(".glb") && !name.endsWith(".gltf")) return;
 
     const mergedOpts: SetupOptions = { ...opts, ...fileOpts };
+    if (fileOpts.orientationPreset) {
+      console.log("[AnimLoader] skeletal orientation preset:", fileOpts.orientationPreset);
+    }
 
     let container: BABYLON.AssetContainer;
     try {
