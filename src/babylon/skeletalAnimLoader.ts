@@ -4,6 +4,7 @@ type AvatarMaps = {
   scene: BABYLON.Scene;
   nodeMap: Map<string, BABYLON.Node>;
   boneMap: Map<string, BABYLON.Bone>;
+  linkedNodeMap: Map<string, BABYLON.TransformNode>;
   morphMap: Map<string, BABYLON.MorphTarget[]>;
 };
 
@@ -38,6 +39,7 @@ declare global {
 function buildAvatarMaps(avatarRoot: any): AvatarMaps {
   const nodeMap = new Map<string, BABYLON.Node>();
   const boneMap = new Map<string, BABYLON.Bone>();
+  const linkedNodeMap = new Map<string, BABYLON.TransformNode>();
 
   const stack: BABYLON.Node[] = [avatarRoot];
   while (stack.length) {
@@ -51,7 +53,7 @@ function buildAvatarMaps(avatarRoot: any): AvatarMaps {
   }
 
   const scene = avatarRoot.getScene() as BABYLON.Scene;
-  const avatarMeshes = avatarRoot.getChildMeshes ? avatarRoot.getChildMeshes(false) : [];
+  const avatarMeshes = scene.meshes.filter(mesh => mesh.name !== "__root__");
   const skels = new Set<BABYLON.Skeleton>();
   avatarMeshes.forEach((mesh: BABYLON.AbstractMesh) => mesh.skeleton && skels.add(mesh.skeleton));
 
@@ -61,11 +63,55 @@ function buildAvatarMaps(avatarRoot: any): AvatarMaps {
       const key = `${skeleton.name}/${bone.name}`;
       boneMap.set(key, bone);
       boneMap.set(bone.name, bone);
+
+      const linkedNode = bone.getTransformNode?.();
+      if (linkedNode) {
+        linkedNodeMap.set(key, linkedNode);
+        linkedNodeMap.set(bone.name, linkedNode);
+      }
     });
   });
 
   const morphMap = window.buildAvatarMorphMap ? window.buildAvatarMorphMap(avatarRoot) : new Map();
-  return { scene, nodeMap, boneMap, morphMap };
+  console.log("[Avatar] nodeMap count:", nodeMap.size);
+  console.log("[Avatar] boneMap count:", boneMap.size);
+  console.log("[Avatar] linkedNodeMap count:", linkedNodeMap.size);
+  console.log("[Avatar] boneMap sample:", Array.from(boneMap.keys()).slice(0, 30));
+
+  return { scene, nodeMap, boneMap, linkedNodeMap, morphMap };
+}
+
+function morphKey(name: string) {
+  return String(name || "").trim().toLowerCase();
+}
+
+function compactMorphKey(name: string) {
+  return morphKey(name).replace(/[^a-z0-9]/g, "");
+}
+
+function findRetargetMorphTargets(maps: AvatarMaps, target: BABYLON.MorphTarget) {
+  if (!target?.name) return [];
+
+  return maps.morphMap.get(morphKey(target.name)) || maps.morphMap.get(compactMorphKey(target.name)) || [];
+}
+
+function findRetargetSkeletalTarget(maps: AvatarMaps, target: any) {
+  if (!target?.name) return null;
+
+  const skeletonName = target._skeleton?.name;
+  const skeletonKey = skeletonName ? `${skeletonName}/${target.name}` : null;
+
+  const linkedTarget =
+    (skeletonKey && maps.linkedNodeMap.get(skeletonKey)) ||
+    maps.linkedNodeMap.get(target.name);
+  if (linkedTarget) return linkedTarget;
+
+  const boneTarget =
+    (skeletonKey && maps.boneMap.get(skeletonKey)) ||
+    maps.boneMap.get(target.name);
+  if (boneTarget) return boneTarget;
+
+  return maps.nodeMap.get(target.name) || null;
 }
 
 function retargetAnimationGroup(
@@ -75,29 +121,32 @@ function retargetAnimationGroup(
 ): BABYLON.AnimationGroup {
   const dst = new BABYLON.AnimationGroup(`${srcGroup.name}_retarget`, maps.scene);
   const scaleMultiplier = opts.scaleMultiplier ?? 1.0;
+  let boneMatched = 0;
+  let nodeMatched = 0;
+  let morphMatched = 0;
+  let unmatched = 0;
 
   for (const ta of srcGroup.targetedAnimations) {
     const anim = ta.animation;
     const tgt = ta.target as any;
 
     let newTarget: any = null;
-    let morphMatched = 0;
-    let morphUnmatched = 0;
 
     if (tgt && typeof tgt.getClassName === "function" && tgt.getClassName() === "Bone") {
-      const key1 = tgt._skeleton ? `${tgt._skeleton.name}/${tgt.name}` : null;
-      newTarget = (key1 && maps.boneMap.get(key1)) || maps.boneMap.get(tgt.name) || null;
+      newTarget = findRetargetSkeletalTarget(maps, tgt);
+      if (newTarget) boneMatched += 1;
     } else if (tgt && typeof tgt.getClassName === "function" && tgt.getClassName() === "MorphTarget") {
-      const targets = window.findRetargetMorphTargets ? window.findRetargetMorphTargets(maps, tgt) : [];
+      const targets = findRetargetMorphTargets(maps, tgt);
       if (!targets.length) {
-        morphUnmatched++;
+        unmatched += 1;
         continue;
       }
       morphMatched += targets.length;
-      for (const target of targets) dst.addTargetedAnimation(anim, target);
+      for (const target of targets) dst.addTargetedAnimation(anim.clone(), target);
       continue;
     } else if (tgt && tgt.name) {
-      newTarget = maps.nodeMap.get(tgt.name) || null;
+      newTarget = findRetargetSkeletalTarget(maps, tgt);
+      if (newTarget) nodeMatched += 1;
     }
 
     if (newTarget) {
@@ -124,11 +173,16 @@ function retargetAnimationGroup(
         dst.addTargetedAnimation(scaledAnim, newTarget);
         console.log(`[ScaleAnim] Scaled position animation by ${scaleMultiplier}`);
       } else {
-        dst.addTargetedAnimation(anim, newTarget);
+        dst.addTargetedAnimation(anim.clone(), newTarget);
       }
+    } else {
+      unmatched += 1;
     }
-    console.log(`[RetargetMorph] matched=${morphMatched} unmatched=${morphUnmatched}`);
   }
+
+  console.log(
+    `[Retarget] source="${srcGroup.name}" outputTargets=${dst.targetedAnimations.length} bone=${boneMatched} node=${nodeMatched} morph=${morphMatched} unmatched=${unmatched}`
+  );
 
   dst.loopAnimation = true;
   if (typeof opts.speedRatio === "number") dst.speedRatio = opts.speedRatio;
