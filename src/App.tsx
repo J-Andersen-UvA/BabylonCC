@@ -6,13 +6,14 @@ import "@babylonjs/inspector";
 
 import "./index.css";
 import { AnimationLoader } from "./components/AnimationLoader";
+import { MorphTargetPanel } from "./components/MorphTargetPanel";
 import { createScene } from "./babylon/createScene";
 import { loadAvatar } from "./babylon/loadAvatar";
 import { createAnimationController } from "./babylon/animationController";
 
 declare global {
   interface Window {
-    BABYLON: typeof BABYLON;
+    BABYLON: any;
     avatarRoot: any;
 
     setupAnimDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
@@ -26,6 +27,7 @@ function App() {
   const sceneRef = useRef<BABYLON.Scene | null>(null);
   const animationControllerRef = useRef<any>(null);
   const [isReady, setIsReady] = useState(false);
+  const [avatarRoot, setAvatarRoot] = useState<BABYLON.TransformNode | null>(null);
 
   // Parse URL parameters for animation scaling
   const getUrlParams = () => {
@@ -38,21 +40,21 @@ function App() {
 
   const urlParams = getUrlParams();
 
-  const handleSkeletalLoad = (file: File) => {
+  const handleSkeletalLoad = async (file: File) => {
     const controller = animationControllerRef.current;
     if (!controller) {
       console.error("[AnimLoader] Animation controller not ready");
       return;
     }
 
-    controller.loadSkeletal(file, { scaleMultiplier: urlParams.skeletalScale });
+    await controller.loadSkeletal(file, { scaleMultiplier: urlParams.skeletalScale });
   };
 
-  const handleBlendshapeLoad = (file: File) => {
+  const handleBlendshapeLoad = async (file: File) => {
     const controller = animationControllerRef.current;
     if (!controller) return;
 
-    controller.loadBlendshape(file);
+    return await controller.loadBlendshape(file);
   };
 
   const handlePlayAll = () => {
@@ -83,9 +85,9 @@ function App() {
       if (disposed) return;
 
       window.avatarRoot = avatarRoot;
+      setAvatarRoot(avatarRoot);
 
       animationControllerRef.current = await createAnimationController(scene, avatarRoot, {
-        mappingUrl: "/CCARKitMapping.csv",
         autoStart: true,
         speedRatio: 1.0,
         jumpKey: "j",
@@ -118,11 +120,26 @@ function App() {
     <>
       <canvas ref={canvasRef} />
       {isReady && (
-        <AnimationLoader
-          onSkeletalLoad={handleSkeletalLoad}
-          onBlendshapeLoad={handleBlendshapeLoad}
-          onPlayAll={handlePlayAll}
-        />
+        <>
+          <AnimationLoader
+            onSkeletalLoad={handleSkeletalLoad}
+            onBlendshapeLoad={handleBlendshapeLoad}
+            onPlayAll={handlePlayAll}
+          />
+          <MorphTargetPanel
+            avatarRoot={avatarRoot}
+            meshNames={[
+              "cc_base_body_primitive0",
+              "cc_base_body_primitive1",
+              "cc_base_body_primitive2",
+              "cc_base_body_primitive3",
+              "cc_base_body_primitive4",
+              "cc_base_body_primitive5",
+              "male_brow_2_primitive0",
+              "male_brow_2_primitive1",
+            ]}
+          />
+        </>
       )}
     </>
   );

@@ -5,7 +5,7 @@ export async function loadAvatar(scene: BABYLON.Scene): Promise<BABYLON.Transfor
   return new Promise((resolve, reject) => {
     BABYLON.SceneLoader.Append(
       "/",
-      "ChrissBlender.glb",
+      "PalmerPolo.glb",
       scene,
       () => {
         const avatarRoot = scene.meshes[0];
@@ -54,7 +54,7 @@ export async function loadAvatar(scene: BABYLON.Scene): Promise<BABYLON.Transfor
         resolve(avatarRoot);
       },
       undefined,
-      (scene, message, exception) => {
+      (_scene, message, _exception) => {
         reject(new Error(`Failed to load avatar: ${message}`));
       }
     );

@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import "./AnimationLoader.css";
 
 interface AnimationLoaderProps {
-  onSkeletalLoad?: (file: File) => void;
-  onBlendshapeLoad?: (file: File) => void;
+  onSkeletalLoad?: (file: File) => Promise<void> | void;
+  onBlendshapeLoad?: (file: File) => Promise<{ targetedAnimations?: number } | undefined> | void;
   onPlayAll?: () => void;
 }
 
@@ -13,6 +13,7 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
   const [blendshapeFile, setBlendshapeFile] = useState<File | null>(null);
   const [skeletalLoaded, setSkeletalLoaded] = useState(false);
   const [blendshapeLoaded, setBlendshapeLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [statusType, setStatusType] = useState<"" | "success" | "error">("");
   
@@ -21,30 +22,60 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
   
   const [skeletalDragOver, setSkeletalDragOver] = useState(false);
   const [blendshapeDragOver, setBlendshapeDragOver] = useState(false);
+  const canLoadBlendshape = skeletalLoaded && !isLoading;
 
-  const handleSkeletalFile = (file: File | null) => {
+  const handleSkeletalFile = async (file: File | null) => {
     if (!file) return;
     setSkeletalFile(file);
     setSkeletalLoaded(false);
-    setStatus("");
+    setStatus("Loading skeletal animation...");
+    setStatusType("");
     
-    // Load immediately but don't play
     if (onSkeletalLoad) {
-      onSkeletalLoad(file);
-      setSkeletalLoaded(true);
+      setIsLoading(true);
+      try {
+        await onSkeletalLoad(file);
+        setSkeletalLoaded(true);
+        setStatus("Skeletal animation loaded");
+        setStatusType("success");
+      } catch (error) {
+        console.error(error);
+        setStatus("Skeletal animation failed");
+        setStatusType("error");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleBlendshapeFile = (file: File | null) => {
+  const handleBlendshapeFile = async (file: File | null) => {
     if (!file) return;
+    if (!skeletalLoaded) {
+      setStatus("Load the skeletal .glb first");
+      setStatusType("error");
+      return;
+    }
+
     setBlendshapeFile(file);
     setBlendshapeLoaded(false);
-    setStatus("");
+    setStatus("Loading blendshape animation...");
+    setStatusType("");
     
-    // Load immediately but don't play
     if (onBlendshapeLoad) {
-      onBlendshapeLoad(file);
-      setBlendshapeLoaded(true);
+      setIsLoading(true);
+      try {
+        const result = await onBlendshapeLoad(file);
+        const count = result?.targetedAnimations ?? 0;
+        setBlendshapeLoaded(count > 0);
+        setStatus(count > 0 ? `Blendshapes loaded: ${count} targets` : "No blendshape targets matched");
+        setStatusType(count > 0 ? "success" : "error");
+      } catch (error) {
+        console.error(error);
+        setStatus("Blendshape animation failed");
+        setStatusType("error");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -110,7 +141,7 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
               setSkeletalDragOver(false);
               const file = e.dataTransfer.files[0];
               if (file && file.name.toLowerCase().endsWith(".glb")) {
-                handleSkeletalFile(file);
+                void handleSkeletalFile(file);
               }
             }}
           >
@@ -126,7 +157,7 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
             type="file"
             accept=".glb"
             className="anim-drop-input"
-            onChange={(e) => handleSkeletalFile(e.target.files?.[0] || null)}
+            onChange={(e) => void handleSkeletalFile(e.target.files?.[0] || null)}
           />
         </div>
 
@@ -134,11 +165,15 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
         <div className="anim-drop-zone">
           <label className="anim-drop-label">Blendshape Animation (.json)</label>
           <div
-            className={`anim-drop-area ${blendshapeDragOver ? "drag-over" : ""} ${blendshapeFile ? "loaded" : ""}`}
-            onClick={() => blendshapeInputRef.current?.click()}
+            className={`anim-drop-area ${blendshapeDragOver ? "drag-over" : ""} ${blendshapeFile ? "loaded" : ""} ${!canLoadBlendshape ? "disabled" : ""}`}
+            onClick={() => {
+              if (canLoadBlendshape) {
+                blendshapeInputRef.current?.click();
+              }
+            }}
             onDragEnter={(e) => {
               preventDefaults(e);
-              setBlendshapeDragOver(true);
+              if (canLoadBlendshape) setBlendshapeDragOver(true);
             }}
             onDragLeave={(e) => {
               preventDefaults(e);
@@ -148,9 +183,14 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
             onDrop={(e) => {
               preventDefaults(e);
               setBlendshapeDragOver(false);
+              if (!canLoadBlendshape) {
+                setStatus("Load the skeletal .glb first");
+                setStatusType("error");
+                return;
+              }
               const file = e.dataTransfer.files[0];
               if (file && file.name.toLowerCase().endsWith(".json")) {
-                handleBlendshapeFile(file);
+                void handleBlendshapeFile(file);
               }
             }}
           >
@@ -166,7 +206,8 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
             type="file"
             accept=".json"
             className="anim-drop-input"
-            onChange={(e) => handleBlendshapeFile(e.target.files?.[0] || null)}
+            disabled={!canLoadBlendshape}
+            onChange={(e) => void handleBlendshapeFile(e.target.files?.[0] || null)}
           />
         </div>
 
@@ -175,9 +216,9 @@ export function AnimationLoader({ onSkeletalLoad, onBlendshapeLoad, onPlayAll }:
           <button
             className="anim-btn anim-btn-primary"
             onClick={handleLoadAnimations}
-            disabled={!skeletalLoaded && !blendshapeLoaded}
+            disabled={isLoading || (!skeletalLoaded && !blendshapeLoaded)}
           >
-            Load
+            {isLoading ? "Loading" : "Load"}
           </button>
           <button
             className="anim-btn anim-btn-secondary"

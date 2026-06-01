@@ -136,6 +136,26 @@
     }
   }
 
+  function groupDurationSeconds(group) {
+    let minSeconds = Infinity;
+    let maxSeconds = -Infinity;
+
+    for (const ta of group?.targetedAnimations || []) {
+      const anim = ta.animation;
+      const fps = anim?.framePerSecond || 60;
+      const keys = anim?.getKeys?.() || [];
+      for (const key of keys) {
+        const seconds = Number(key.frame) / fps;
+        if (!Number.isFinite(seconds)) continue;
+        minSeconds = Math.min(minSeconds, seconds);
+        maxSeconds = Math.max(maxSeconds, seconds);
+      }
+    }
+
+    if (!Number.isFinite(minSeconds) || !Number.isFinite(maxSeconds)) return 0;
+    return Math.max(0, maxSeconds - minSeconds);
+  }
+
   function debugAvatarMorphs(avatarRoot, maps) {
     const meshes = avatarRoot.getChildMeshes ? avatarRoot.getChildMeshes(false) : [];
     let totalTargets = 0;
@@ -243,6 +263,10 @@
       // Don't auto-play when called programmatically
       // Only auto-play for drag-drop events
       setUI(`Loaded ${currentGroups.length} anim group(s). (Drop another to replace)`);
+
+      const durationSeconds = Math.max(...currentGroups.map(groupDurationSeconds), 0);
+      console.log("[AnimLoader] skeletal duration seconds:", durationSeconds);
+      return { groupCount: currentGroups.length, durationSeconds };
     }
 
     // Drag/drop events

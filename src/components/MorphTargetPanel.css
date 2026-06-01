@@ -1,0 +1,158 @@
+.morph-panel-toggle {
+  position: fixed;
+  left: 158px;
+  top: 12px;
+  z-index: 9999;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background 0.2s;
+}
+
+.morph-panel-toggle:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.morph-panel {
+  position: fixed;
+  right: 12px;
+  top: 12px;
+  z-index: 9998;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 18, 18, 0.95);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.morph-panel.hidden {
+  display: none;
+}
+
+.morph-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.morph-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.morph-panel-subtitle {
+  margin-top: 2px;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.morph-panel-reset {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  background: #3f3f46;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.morph-panel-reset:hover {
+  background: #52525b;
+}
+
+.morph-panel-reset:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.morph-panel-empty {
+  padding: 16px;
+  color: #aaa;
+  font-size: 13px;
+}
+
+.morph-panel-note {
+  margin: 12px 16px 0;
+  color: #fbbf24;
+  font-size: 12px;
+}
+
+.morph-panel-search {
+  margin: 14px 16px 10px;
+  padding: 9px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.morph-panel-search::placeholder {
+  color: #888;
+}
+
+.morph-panel-list {
+  overflow: auto;
+  padding: 0 16px 16px;
+}
+
+.morph-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(130px, 1.25fr) 42px;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.morph-row-name {
+  overflow: hidden;
+  color: #ddd;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.morph-row-slider {
+  width: 100%;
+  accent-color: #38bdf8;
+}
+
+.morph-row-value {
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  text-align: right;
+}
+
+@media (max-width: 620px) {
+  .morph-panel-toggle {
+    left: 12px;
+    top: 58px;
+  }
+
+  .morph-panel {
+    top: 104px;
+    max-height: calc(100vh - 116px);
+  }
+
+  .morph-row {
+    grid-template-columns: minmax(88px, 0.9fr) minmax(96px, 1fr) 38px;
+  }
+}
