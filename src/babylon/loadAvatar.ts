@@ -60,7 +60,7 @@ function buildAvatarMorphMapImpl(avatarRoot: any) {
 window.buildAvatarMorphMap = buildAvatarMorphMapImpl;
 
 export async function loadAvatar(scene: BABYLON.Scene): Promise<BABYLON.TransformNode> {
-  const result = await BABYLON.SceneLoader.ImportMeshAsync("", "/", "Palmer_optimized_ktx2.glb", scene);
+  const result = await BABYLON.SceneLoader.ImportMeshAsync("", "/", "PalmerPolo.glb", scene);
 
   const avatarRoot =
     result.transformNodes[0] ||
