@@ -124,7 +124,7 @@ function App() {
     lightingRigRef.current = setupLighting(scene, {
       environmentUrl: "/environment.env",
       iblIntensity: 0.35,
-      useGroundProjection: true,
+      useGroundProjection: false,
       groundProjectionRadius: 20,
       groundProjectionHeight: 1.5,
     });

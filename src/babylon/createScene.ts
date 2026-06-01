@@ -38,6 +38,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneSetupResult {
   const engine = new BABYLON.Engine(canvas, true);
   engine.setHardwareScalingLevel(1.5); // Render at 67% resolution for better FPS
   const scene = new BABYLON.Scene(engine);
+  scene.clearColor = new BABYLON.Color4(0.45, 0.45, 0.45, 1);
 
   // Default camera/light similar to createDefaultCameraOrLight(true,true,true)
   scene.createDefaultCameraOrLight(true, true, true);
