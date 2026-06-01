@@ -10,15 +10,12 @@ import { MorphTargetPanel } from "./components/MorphTargetPanel";
 import { createScene } from "./babylon/createScene";
 import { loadAvatar } from "./babylon/loadAvatar";
 import { createAnimationController } from "./babylon/animationController";
+import { setupLighting } from "./babylon/lighting";
 
 declare global {
   interface Window {
     BABYLON: any;
     avatarRoot: any;
-
-    setupAnimDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
-    setupJumpToAvatar?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
-    setupJsonMorphDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
   }
 }
 
@@ -26,13 +23,15 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<BABYLON.Scene | null>(null);
   const animationControllerRef = useRef<any>(null);
+  const lightingRigRef = useRef<ReturnType<typeof setupLighting> | null>(null);
+
   const [isReady, setIsReady] = useState(false);
   const [avatarRoot, setAvatarRoot] = useState<BABYLON.TransformNode | null>(null);
 
-  // Parse URL parameters for animation scaling
   const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
-    const skeletalScale = params.get('scale-skeletal-anim');
+    const skeletalScale = params.get("scale-skeletal-anim");
+
     return {
       skeletalScale: skeletalScale ? parseFloat(skeletalScale) : 1.0,
     };
@@ -52,7 +51,10 @@ function App() {
 
   const handleBlendshapeLoad = async (file: File) => {
     const controller = animationControllerRef.current;
-    if (!controller) return;
+    if (!controller) {
+      console.error("[AnimLoader] Animation controller not ready");
+      return;
+    }
 
     return await controller.loadBlendshape(file);
   };
@@ -73,15 +75,24 @@ function App() {
     const { engine, scene, dispose: disposeScene } = createScene(canvas);
     sceneRef.current = scene;
 
-    // Make BABYLON available to your legacy scripts (they reference global BABYLON)
     window.BABYLON = BABYLON;
+
+    lightingRigRef.current = setupLighting(scene, {
+      environmentUrl: "/environment.env",
+      iblIntensity: 0.35,
+      useGroundProjection: true,
+      groundProjectionRadius: 20,
+      groundProjectionHeight: 1.5,
+    });
+
+    lightingRigRef.current.environmentTexture?.onLoadObservable.addOnce(() => {
+      console.log("[Lighting] environment ready");
+    });
 
     const boot = async () => {
       if (disposed) return;
 
-      // Load avatar GLB (served from /public)
       const avatarRoot = await loadAvatar(scene);
-
       if (disposed) return;
 
       window.avatarRoot = avatarRoot;
@@ -94,21 +105,27 @@ function App() {
       });
 
       setIsReady(true);
-
       engine.runRenderLoop(() => scene.render());
     };
 
     let cleanupHandlers: null | (() => void) = null;
 
-    boot().then((cleanup) => {
+    boot().then(cleanup => {
       cleanupHandlers = typeof cleanup === "function" ? cleanup : null;
     });
 
     return () => {
       disposed = true;
+
       try {
         cleanupHandlers?.();
       } catch {}
+
+      try {
+        lightingRigRef.current?.dispose?.();
+      } catch {}
+
+      lightingRigRef.current = null;
 
       disposeScene();
       scene.dispose();

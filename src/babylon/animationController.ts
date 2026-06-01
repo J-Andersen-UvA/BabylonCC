@@ -28,9 +28,7 @@ export interface AnimationController {
 
 declare global {
   interface Window {
-    setupAnimDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
     setupJumpToAvatar?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
-    setupJsonMorphDrop?: (scene: BABYLON.Scene, avatarRoot: any, opts?: any) => any;
   }
 }
 
@@ -39,27 +37,28 @@ export async function createAnimationController(
   avatarRoot: any,
   options: AnimationControllerOptions
 ): Promise<AnimationController> {
-  await import("../helpers/retargetBlendshapes.js");
-  await import("../helpers/animDrop.js");
+  await import("./skeletalAnimLoader.ts");
   await import("../helpers/jumpToAvatar.js");
-  await import("../helpers/jsonAnim.js");
+  await import("./morphAnimLoader.ts");
 
-  const animDropHandler = window.setupAnimDrop?.(scene, avatarRoot, {
+  const skeletalHandler = window.setupSkeletalAnimLoader?.(scene, avatarRoot, {
     autoStart: options.autoStart ?? true,
     speedRatio: options.speedRatio ?? 1.0,
   });
 
   window.setupJumpToAvatar?.(scene, avatarRoot, { key: options.jumpKey ?? "j" });
 
-  const morphHandler = window.setupJsonMorphDrop?.(scene, avatarRoot, {
+  const morphHandler = window.setupMorphAnimLoader?.(scene, avatarRoot, {
     loop: true,
+    speedRatio: options.speedRatio ?? 1.0,
   });
+
   let lastSkeletalDurationSeconds: number | undefined;
 
   return {
     loadSkeletal: async (file: File, loadOptions?: SkeletalLoadOptions) => {
-      if (!animDropHandler?.loadFile) {
-        console.error("[AnimLoader] animDrop handler not ready");
+      if (!skeletalHandler?.loadFile) {
+        console.error("[AnimLoader] skeletal handler not ready");
         return;
       }
 
@@ -68,29 +67,29 @@ export async function createAnimationController(
         console.log("[AnimLoader] Skeletal scale multiplier:", loadOptions.scaleMultiplier);
       }
 
-      const result: SkeletalLoadResult | undefined = await animDropHandler.loadFile(file, {
+      const result: SkeletalLoadResult | undefined = await skeletalHandler.loadFile(file, {
         scaleMultiplier: loadOptions?.scaleMultiplier ?? 1.0,
       });
       lastSkeletalDurationSeconds = result?.durationSeconds;
     },
+
     loadBlendshape: async (file: File) => {
-      if (!morphHandler?.loadFile) return;
+      if (!morphHandler?.loadFile) {
+        console.error("[AnimLoader] morph handler not ready");
+        return;
+      }
 
       console.log("[AnimLoader] Loading blendshape animation:", file.name);
       return await morphHandler.loadFile(file, {
         targetDurationSeconds: lastSkeletalDurationSeconds,
       });
     },
+
     playAll: () => {
       console.log("[AnimLoader] Playing all animations");
 
-      if (animDropHandler?.play) {
-        animDropHandler.play();
-      }
-
-      if (morphHandler?.play) {
-        morphHandler.play();
-      }
+      skeletalHandler?.play?.();
+      morphHandler?.play?.();
     },
   };
 }
