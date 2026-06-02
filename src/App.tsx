@@ -6,8 +6,10 @@ import "@babylonjs/inspector";
 
 import "./index.css";
 import { AnimationLoader, type AvatarOrientationPreset } from "./components/AnimationLoader";
+import { BackdropColorPanel } from "./components/BackdropColorPanel";
 import { MorphTargetPanel } from "./components/MorphTargetPanel";
-import { createScene } from "./babylon/createScene";
+import { createScene, focusCameraOnAvatar } from "./babylon/createScene";
+import { loadBackdrop } from "./babylon/loadBackdrop";
 import { loadAvatar } from "./babylon/loadAvatar";
 import { createAnimationController } from "./babylon/animationController";
 import { setupLighting } from "./babylon/lighting";
@@ -18,6 +20,7 @@ declare global {
   interface Window {
     BABYLON: any;
     avatarRoot: any;
+    focusAvatarCamera?: () => void;
   }
 }
 
@@ -29,6 +32,7 @@ function App() {
 
   const [isReady, setIsReady] = useState(false);
   const [avatarRoot, setAvatarRoot] = useState<BABYLON.TransformNode | null>(null);
+  const [backdropMaterial, setBackdropMaterial] = useState<BABYLON.PBRMaterial | null>(null);
 
   const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
@@ -86,7 +90,6 @@ function App() {
       return;
     }
 
-    applyAvatarOrientation(options.orientationPreset);
     await controller.loadSkeletal(file, {
       scaleMultiplier: urlParams.skeletalScale,
       orientationPreset: options.orientationPreset,
@@ -105,7 +108,9 @@ function App() {
 
   const handlePlayAll = () => {
     const controller = animationControllerRef.current;
-    if (!controller) return;
+    if (!controller || !avatarRoot) return;
+
+    applyAvatarOrientation(DEFAULT_AVATAR_ORIENTATION);
 
     controller.playAll();
   };
@@ -136,15 +141,21 @@ function App() {
     const boot = async () => {
       if (disposed) return;
 
+      const backdrop = await loadBackdrop(scene);
+      if (disposed) return;
+      setBackdropMaterial(backdrop.material);
+
       const avatarRoot = await loadAvatar(scene);
       if (disposed) return;
 
       window.avatarRoot = avatarRoot;
-      avatarRoot.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(
-        orientationToEuler(DEFAULT_AVATAR_ORIENTATION)
-      );
+      // avatarRoot.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(
+      //   orientationToEuler(DEFAULT_AVATAR_ORIENTATION)
+      // );
 
       setAvatarRoot(avatarRoot);
+      focusCameraOnAvatar(scene, avatarRoot);
+      window.focusAvatarCamera = () => focusCameraOnAvatar(scene, avatarRoot);
 
       animationControllerRef.current = await createAnimationController(scene, avatarRoot, {
         autoStart: true,
@@ -192,6 +203,7 @@ function App() {
             onOrientationChange={handleOrientationChange}
             onPlayAll={handlePlayAll}
           />
+          <BackdropColorPanel material={backdropMaterial} />
           <MorphTargetPanel
             avatarRoot={avatarRoot}
             meshNames={[

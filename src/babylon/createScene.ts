@@ -1,4 +1,5 @@
 import * as BABYLON from "@babylonjs/core";
+import { AVATAR_CAMERA_CONFIG } from "../config/cameraConfig";
 
 interface SceneSetupResult {
   engine: BABYLON.Engine;
@@ -7,15 +8,90 @@ interface SceneSetupResult {
 }
 
 function cameraInit(scene: BABYLON.Scene): BABYLON.Camera | null {
-    const cam = scene.activeCamera as any;
-    if (cam) {
-        cam.alpha = Math.PI / 2;
-        cam.beta = 1.2;
-        cam.radius = 2.2;
-        cam.minZ = 0.001;
-        cam.lowerRadiusLimit = 0.005;
+  const cam = scene.activeCamera as BABYLON.ArcRotateCamera | null;
+  if (cam) {
+    cam.minZ = 0.001;
+    cam.lowerRadiusLimit = 0.005;
+  }
+  return cam;
+}
+
+function vectorFromConfig(value: { x: number; y: number; z: number }): BABYLON.Vector3 {
+  return new BABYLON.Vector3(value.x, value.y, value.z);
+}
+
+type CameraFocusTarget = {
+  position: BABYLON.Vector3;
+  source: string;
+};
+
+function findFocusTarget(
+  scene: BABYLON.Scene,
+  avatarRoot: BABYLON.TransformNode
+): CameraFocusTarget | null {
+  const focusNames = AVATAR_CAMERA_CONFIG.focusBoneNames.map(name => name.toLowerCase());
+
+  for (const skeleton of scene.skeletons) {
+    for (const bone of skeleton.bones) {
+      if (!focusNames.includes(bone.name.toLowerCase())) continue;
+
+      const linkedNode = bone.getTransformNode?.();
+      if (linkedNode) {
+        return {
+          position: linkedNode.getAbsolutePosition(),
+          source: `bone:${bone.name}`,
+        };
+      }
     }
-    return cam;
+  }
+
+  const descendants = avatarRoot.getDescendants(false);
+  const focusNode = descendants.find(node => focusNames.includes(node.name.toLowerCase()));
+
+  if (focusNode instanceof BABYLON.TransformNode) {
+    return {
+      position: focusNode.getAbsolutePosition(),
+      source: `node:${focusNode.name}`,
+    };
+  }
+
+  return null;
+}
+
+export function focusCameraOnAvatar(scene: BABYLON.Scene, avatarRoot: BABYLON.TransformNode) {
+  const cam = scene.activeCamera as BABYLON.ArcRotateCamera | null;
+  if (!cam) return;
+
+  const focusTarget = findFocusTarget(scene, avatarRoot);
+  const target = focusTarget?.position ?? vectorFromConfig(AVATAR_CAMERA_CONFIG.fallbackTarget);
+  const offset = vectorFromConfig(AVATAR_CAMERA_CONFIG.targetOffset);
+  const finalTarget = target.add(offset);
+
+  cam.setTarget(finalTarget);
+  cam.alpha = AVATAR_CAMERA_CONFIG.alpha;
+  cam.beta = AVATAR_CAMERA_CONFIG.beta;
+  cam.radius = AVATAR_CAMERA_CONFIG.radius;
+
+  console.log("[Camera] focus config:", AVATAR_CAMERA_CONFIG);
+  console.log(
+    "[Camera] focused:",
+    focusTarget?.source ?? "fallback",
+    "target:",
+    finalTarget.toString(),
+    "alpha:",
+    cam.alpha,
+    "beta:",
+    cam.beta,
+    "radius:",
+    cam.radius
+  );
+
+  if (!focusTarget) {
+    console.log(
+      "[Camera] available bone sample:",
+      scene.skeletons.flatMap(skeleton => skeleton.bones.map(bone => bone.name)).slice(0, 50)
+    );
+  }
 }
 
 function debugInit(scene: BABYLON.Scene): (e: KeyboardEvent) => void {
@@ -38,8 +114,8 @@ export function createScene(canvas: HTMLCanvasElement): SceneSetupResult {
   const engine = new BABYLON.Engine(canvas, true);
   engine.setHardwareScalingLevel(1.5); // Render at 67% resolution for better FPS
   const scene = new BABYLON.Scene(engine);
-  scene.clearColor = new BABYLON.Color4(0.45, 0.45, 0.45, 1);
-
+  scene.clearColor = BABYLON.Color4.FromHexString("#1F242BFF");
+  
   // Default camera/light similar to createDefaultCameraOrLight(true,true,true)
   scene.createDefaultCameraOrLight(true, true, true);
 
