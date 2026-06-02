@@ -13,6 +13,7 @@ import { loadBackdrop } from "./babylon/loadBackdrop";
 import { loadAvatar } from "./babylon/loadAvatar";
 import { createAnimationController } from "./babylon/animationController";
 import { setupLighting } from "./babylon/lighting";
+import { RENDER_CONFIG } from "./config/renderConfig";
 
 const DEFAULT_AVATAR_ORIENTATION: AvatarOrientationPreset = "xMinus90Y180";
 
@@ -127,11 +128,28 @@ function App() {
     window.BABYLON = BABYLON;
 
     lightingRigRef.current = setupLighting(scene, {
-      environmentUrl: "/environment.env",
-      iblIntensity: 0.35,
-      useGroundProjection: false,
-      groundProjectionRadius: 20,
-      groundProjectionHeight: 1.5,
+      environmentUrl: RENDER_CONFIG.lighting.environmentUrl,
+      exposure: RENDER_CONFIG.imageProcessing.exposure,
+      contrast: RENDER_CONFIG.imageProcessing.contrast,
+      toneMappingEnabled: RENDER_CONFIG.imageProcessing.toneMappingEnabled,
+      iblIntensity: RENDER_CONFIG.lighting.iblIntensity,
+      sunIntensity: RENDER_CONFIG.lighting.sunIntensity,
+      sunDirection: new BABYLON.Vector3(
+        RENDER_CONFIG.lighting.sunDirection.x,
+        RENDER_CONFIG.lighting.sunDirection.y,
+        RENDER_CONFIG.lighting.sunDirection.z
+      ),
+      useHemiFill: RENDER_CONFIG.lighting.hemiFillEnabled,
+      hemiIntensity: RENDER_CONFIG.lighting.hemiIntensity,
+      hemiGroundColor: BABYLON.Color3.FromHexString(RENDER_CONFIG.lighting.hemiGroundColor),
+      hemiDiffuseColor: BABYLON.Color3.FromHexString(RENDER_CONFIG.lighting.hemiDiffuseColor),
+      hemiSpecularColor: BABYLON.Color3.FromHexString(RENDER_CONFIG.lighting.hemiSpecularColor),
+      shadowMapSize: RENDER_CONFIG.shadows.mapSize,
+      usePercentageCloserFiltering: RENDER_CONFIG.shadows.usePercentageCloserFiltering,
+      useGroundProjection: RENDER_CONFIG.environmentBackground.useGroundProjection,
+      groundProjectionSize: RENDER_CONFIG.environmentBackground.groundProjectionSize,
+      groundProjectionRadius: RENDER_CONFIG.environmentBackground.groundProjectionRadius,
+      groundProjectionHeight: RENDER_CONFIG.environmentBackground.groundProjectionHeight,
     });
 
     lightingRigRef.current.environmentTexture?.onLoadObservable.addOnce(() => {

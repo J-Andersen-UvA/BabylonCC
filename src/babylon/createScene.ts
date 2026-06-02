@@ -1,5 +1,6 @@
 import * as BABYLON from "@babylonjs/core";
 import { AVATAR_CAMERA_CONFIG } from "../config/cameraConfig";
+import { RENDER_CONFIG } from "../config/renderConfig";
 
 interface SceneSetupResult {
   engine: BABYLON.Engine;
@@ -112,9 +113,9 @@ function debugInit(scene: BABYLON.Scene): (e: KeyboardEvent) => void {
 
 export function createScene(canvas: HTMLCanvasElement): SceneSetupResult {
   const engine = new BABYLON.Engine(canvas, true);
-  engine.setHardwareScalingLevel(1.5); // Render at 67% resolution for better FPS
+  engine.setHardwareScalingLevel(RENDER_CONFIG.hardwareScalingLevel);
   const scene = new BABYLON.Scene(engine);
-  scene.clearColor = BABYLON.Color4.FromHexString("#1F242BFF");
+  scene.clearColor = BABYLON.Color4.FromHexString(RENDER_CONFIG.clearColor);
   
   // Default camera/light similar to createDefaultCameraOrLight(true,true,true)
   scene.createDefaultCameraOrLight(true, true, true);

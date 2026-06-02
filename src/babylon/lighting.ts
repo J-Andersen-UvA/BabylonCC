@@ -27,6 +27,14 @@ export type SetupLightingOptions = {
   groundProjectionSize?: number;
   groundProjectionRadius?: number;
   groundProjectionHeight?: number;
+  toneMappingEnabled?: boolean;
+  contrast?: number;
+  shadowMapSize?: number;
+  usePercentageCloserFiltering?: boolean;
+  hemiIntensity?: number;
+  hemiGroundColor?: Color3;
+  hemiDiffuseColor?: Color3;
+  hemiSpecularColor?: Color3;
 };
 
 export type LightingRig = {
@@ -55,6 +63,14 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
     groundProjectionSize = 1000,
     groundProjectionRadius = 20,
     groundProjectionHeight = 1.5,
+    toneMappingEnabled = false,
+    contrast = 1.0,
+    shadowMapSize = 2048,
+    usePercentageCloserFiltering = true,
+    hemiIntensity = 0.25,
+    hemiGroundColor = new Color3(0.15, 0.15, 0.15),
+    hemiDiffuseColor = new Color3(1, 1, 1),
+    hemiSpecularColor = new Color3(0.2, 0.2, 0.2),
   } = opts;
 
   let environmentTexture: CubeTexture | undefined;
@@ -63,11 +79,11 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
 
   scene.environmentIntensity = iblIntensity;
 
-  scene.imageProcessingConfiguration.toneMappingEnabled = false;
+  scene.imageProcessingConfiguration.toneMappingEnabled = toneMappingEnabled;
   scene.imageProcessingConfiguration.toneMappingType =
     ImageProcessingConfiguration.TONEMAPPING_ACES;
   scene.imageProcessingConfiguration.exposure = exposure;
-  scene.imageProcessingConfiguration.contrast = 1.0;
+  scene.imageProcessingConfiguration.contrast = contrast;
 
   if (environmentUrl) {
     environmentTexture = CubeTexture.CreateFromPrefilteredData(environmentUrl, scene);
@@ -102,8 +118,8 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
   sun.shadowMinZ = 0.1;
   sun.shadowMaxZ = 250;
 
-  const shadowGenerator = new ShadowGenerator(2048, sun);
-  shadowGenerator.usePercentageCloserFiltering = true;
+  const shadowGenerator = new ShadowGenerator(shadowMapSize, sun);
+  shadowGenerator.usePercentageCloserFiltering = usePercentageCloserFiltering;
   shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_HIGH;
 
   for (const mesh of shadowCasters) {
@@ -117,10 +133,10 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
   let hemi: HemisphericLight | undefined;
   if (useHemiFill) {
     hemi = new HemisphericLight("hemiFill", new Vector3(0, 1, 0), scene);
-    hemi.intensity = 0.25;
-    hemi.groundColor = new Color3(0.15, 0.15, 0.15);
-    hemi.diffuse = new Color3(1, 1, 1);
-    hemi.specular = new Color3(0.2, 0.2, 0.2);
+    hemi.intensity = hemiIntensity;
+    hemi.groundColor = hemiGroundColor;
+    hemi.diffuse = hemiDiffuseColor;
+    hemi.specular = hemiSpecularColor;
   }
 
   const addShadowCaster = (mesh: AbstractMesh) => {
