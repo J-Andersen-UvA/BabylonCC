@@ -23,7 +23,13 @@ declare global {
       opts?: MorphLoaderOptions
     ) => {
       stop: () => void;
+      pause: () => void;
       play: () => boolean;
+      setSpeedRatio: (speedRatio: number) => void;
+      goToFrame: (frame: number) => void;
+      getFrameRange: () => { from: number; to: number } | null;
+      getCurrentFrame: () => number | null;
+      isPlaying: () => boolean;
       dispose: () => void;
       loadFile: (file: File, options?: MorphLoadOptions) => Promise<MorphLoadResult>;
     };
@@ -101,6 +107,20 @@ export function setupMorphAnimLoader(
   if (!scene || !avatarRoot) throw new Error("scene + avatarRoot required");
 
   let currentGroup: BABYLON.AnimationGroup | null = null;
+  let lastFrame = 0;
+
+  function getCurrentFrame() {
+    const targetedAnimations = currentGroup?.targetedAnimations ?? [];
+    for (const ta of targetedAnimations) {
+      const runtime = ta.animation.runtimeAnimations?.[0];
+      if (runtime && Number.isFinite(runtime.currentFrame)) {
+        lastFrame = runtime.currentFrame;
+        return runtime.currentFrame;
+      }
+    }
+
+    return Number.isFinite(lastFrame) ? lastFrame : null;
+  }
 
   async function handleFile(file: File, loadOpts: MorphLoadOptions = {}): Promise<MorphLoadResult> {
     console.log("[morphAnim] file dropped:", file?.name);
@@ -206,6 +226,7 @@ export function setupMorphAnimLoader(
 
   return {
     stop: () => currentGroup?.stop(),
+    pause: () => currentGroup?.pause(),
     play: () => {
       if (currentGroup) {
         currentGroup.start(opts.loop !== false, opts.speedRatio ?? 1.0);
@@ -215,6 +236,23 @@ export function setupMorphAnimLoader(
       console.warn("[morphAnim] play requested before morph animation was loaded");
       return false;
     },
+    setSpeedRatio: (speedRatio: number) => {
+      opts.speedRatio = speedRatio;
+      if (currentGroup) currentGroup.speedRatio = speedRatio;
+    },
+    goToFrame: (frame: number) => {
+      lastFrame = frame;
+      currentGroup?.goToFrame(frame);
+    },
+    getFrameRange: () => {
+      if (!currentGroup) return null;
+      return {
+        from: currentGroup.from,
+        to: currentGroup.to,
+      };
+    },
+    getCurrentFrame,
+    isPlaying: () => !!currentGroup?.isPlaying,
     dispose: () => stopAndDispose(currentGroup),
     loadFile: handleFile,
   };

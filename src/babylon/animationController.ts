@@ -26,6 +26,18 @@ export interface AnimationController {
   loadSkeletal: (file: File, options?: SkeletalLoadOptions) => Promise<void>;
   loadBlendshape: (file: File) => Promise<BlendshapeLoadResult | undefined>;
   playAll: () => void;
+  pauseAll: () => void;
+  togglePlayPause: () => boolean;
+  setSpeedRatio: (speedRatio: number) => void;
+  seekFrame: (frame: number) => void;
+  getState: () => {
+    isPlaying: boolean;
+    currentFrame: number;
+    from: number;
+    to: number;
+    speedRatio: number;
+    hasAnimation: boolean;
+  };
 }
 
 declare global {
@@ -56,6 +68,39 @@ export async function createAnimationController(
   });
 
   let lastSkeletalDurationSeconds: number | undefined;
+  let currentSpeedRatio = options.speedRatio ?? 1.0;
+  let lastFrame = 0;
+
+  function getRanges() {
+    return [skeletalHandler?.getFrameRange?.(), morphHandler?.getFrameRange?.()].filter(Boolean) as Array<{
+      from: number;
+      to: number;
+    }>;
+  }
+
+  function getFrameRange() {
+    const ranges = getRanges();
+    if (!ranges.length) return { from: 0, to: 0 };
+
+    return {
+      from: Math.min(...ranges.map(range => range.from)),
+      to: Math.max(...ranges.map(range => range.to)),
+    };
+  }
+
+  function getCurrentFrame() {
+    const frame = skeletalHandler?.getCurrentFrame?.() ?? morphHandler?.getCurrentFrame?.() ?? lastFrame;
+    if (Number.isFinite(frame)) lastFrame = frame;
+    return lastFrame;
+  }
+
+  function hasAnimation() {
+    return getRanges().length > 0;
+  }
+
+  function isPlaying() {
+    return !!skeletalHandler?.isPlaying?.() || !!morphHandler?.isPlaying?.();
+  }
 
   return {
     loadSkeletal: async (file: File, loadOptions?: SkeletalLoadOptions) => {
@@ -93,6 +138,47 @@ export async function createAnimationController(
 
       skeletalHandler?.play?.();
       morphHandler?.play?.();
+    },
+
+    pauseAll: () => {
+      skeletalHandler?.pause?.();
+      morphHandler?.pause?.();
+    },
+
+    togglePlayPause: () => {
+      if (isPlaying()) {
+        skeletalHandler?.pause?.();
+        morphHandler?.pause?.();
+        return false;
+      }
+
+      skeletalHandler?.play?.();
+      morphHandler?.play?.();
+      return true;
+    },
+
+    setSpeedRatio: (speedRatio: number) => {
+      currentSpeedRatio = speedRatio;
+      skeletalHandler?.setSpeedRatio?.(speedRatio);
+      morphHandler?.setSpeedRatio?.(speedRatio);
+    },
+
+    seekFrame: (frame: number) => {
+      lastFrame = frame;
+      skeletalHandler?.goToFrame?.(frame);
+      morphHandler?.goToFrame?.(frame);
+    },
+
+    getState: () => {
+      const range = getFrameRange();
+      return {
+        isPlaying: isPlaying(),
+        currentFrame: getCurrentFrame(),
+        from: range.from,
+        to: range.to,
+        speedRatio: currentSpeedRatio,
+        hasAnimation: hasAnimation(),
+      };
     },
   };
 }

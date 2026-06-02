@@ -28,7 +28,13 @@ declare global {
   interface Window {
     setupSkeletalAnimLoader?: (scene: BABYLON.Scene, avatarRoot: any, opts?: SetupOptions) => {
       play: (idx?: number) => void;
+      pause: () => void;
       stop: () => void;
+      setSpeedRatio: (speedRatio: number) => void;
+      goToFrame: (frame: number) => void;
+      getFrameRange: () => { from: number; to: number } | null;
+      getCurrentFrame: () => number | null;
+      isPlaying: () => boolean;
       list: () => string[];
       loadFile: (file: File, options?: HandleFileOptions) => Promise<LoadResult | undefined>;
     };
@@ -259,6 +265,34 @@ export function setupSkeletalAnimLoader(scene: BABYLON.Scene, avatarRoot: any, o
   debugAvatarMorphs(avatarRoot, maps);
 
   let currentGroups: BABYLON.AnimationGroup[] = [];
+  let lastFrame = 0;
+
+  function getFrameRange() {
+    const ranges = currentGroups
+      .map(group => ({ from: Number(group.from), to: Number(group.to) }))
+      .filter(range => Number.isFinite(range.from) && Number.isFinite(range.to));
+
+    if (!ranges.length) return null;
+
+    return {
+      from: Math.min(...ranges.map(range => range.from)),
+      to: Math.max(...ranges.map(range => range.to)),
+    };
+  }
+
+  function getCurrentFrame() {
+    for (const group of currentGroups) {
+      for (const ta of group.targetedAnimations) {
+        const runtime = ta.animation.runtimeAnimations?.[0];
+        if (runtime && Number.isFinite(runtime.currentFrame)) {
+          lastFrame = runtime.currentFrame;
+          return runtime.currentFrame;
+        }
+      }
+    }
+
+    return Number.isFinite(lastFrame) ? lastFrame : null;
+  }
 
   async function handleFile(file: File, fileOpts: HandleFileOptions = {}) {
     console.log("[Drop] file=", file);
@@ -350,7 +384,21 @@ export function setupSkeletalAnimLoader(scene: BABYLON.Scene, avatarRoot: any, o
         currentGroups.forEach(group => group.play(true));
       }
     },
+    pause: () => currentGroups.forEach(group => group.pause()),
     stop: () => currentGroups.forEach(group => group.stop()),
+    setSpeedRatio: (speedRatio: number) => {
+      opts.speedRatio = speedRatio;
+      currentGroups.forEach(group => {
+        group.speedRatio = speedRatio;
+      });
+    },
+    goToFrame: (frame: number) => {
+      lastFrame = frame;
+      currentGroups.forEach(group => group.goToFrame(frame));
+    },
+    getFrameRange,
+    getCurrentFrame,
+    isPlaying: () => currentGroups.some(group => group.isPlaying),
     list: () => currentGroups.map(group => group.name),
     loadFile: handleFile,
   };

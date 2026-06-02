@@ -5,7 +5,9 @@ import "@babylonjs/loaders";
 import "@babylonjs/inspector";
 
 import "./index.css";
+import type { AnimationController } from "./babylon/animationController";
 import { AnimationLoader, type AvatarOrientationPreset } from "./components/AnimationLoader";
+import { AnimationPlaybar } from "./components/AnimationPlaybar";
 import { BackdropColorPanel } from "./components/BackdropColorPanel";
 import { MorphTargetPanel } from "./components/MorphTargetPanel";
 import { createScene, focusCameraOnAvatar } from "./babylon/createScene";
@@ -34,6 +36,7 @@ function App() {
   const [isReady, setIsReady] = useState(false);
   const [avatarRoot, setAvatarRoot] = useState<BABYLON.TransformNode | null>(null);
   const [backdropMaterial, setBackdropMaterial] = useState<BABYLON.PBRMaterial | null>(null);
+  const [animationController, setAnimationController] = useState<AnimationController | null>(null);
 
   const getUrlParams = () => {
     const params = new URLSearchParams(window.location.search);
@@ -175,11 +178,13 @@ function App() {
       focusCameraOnAvatar(scene, avatarRoot);
       window.focusAvatarCamera = () => focusCameraOnAvatar(scene, avatarRoot);
 
-      animationControllerRef.current = await createAnimationController(scene, avatarRoot, {
+      const controller = await createAnimationController(scene, avatarRoot, {
         autoStart: true,
         speedRatio: 1.0,
         jumpKey: "j",
       });
+      animationControllerRef.current = controller;
+      setAnimationController(controller);
 
       setIsReady(true);
       engine.runRenderLoop(() => scene.render());
@@ -222,6 +227,10 @@ function App() {
             onPlayAll={handlePlayAll}
           />
           <BackdropColorPanel material={backdropMaterial} />
+          <AnimationPlaybar
+            controller={animationController}
+            onBeforePlay={() => applyAvatarOrientation(DEFAULT_AVATAR_ORIENTATION)}
+          />
           <MorphTargetPanel
             avatarRoot={avatarRoot}
             meshNames={[
