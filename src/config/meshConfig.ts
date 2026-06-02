@@ -20,6 +20,14 @@ export const AVATAR_MATERIAL_CONFIG = {
   metallic: 0,
 };
 
+// More specular studio-test preset:
+// export const AVATAR_MATERIAL_CONFIG = {
+//   specularIntensity: 0.35,
+//   environmentIntensity: 0.25,
+//   roughness: 0.48,
+//   metallic: 0,
+// };
+
 /**
  * Check if a mesh name matches any exclusion pattern
  */
