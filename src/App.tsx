@@ -195,6 +195,8 @@ function App() {
       hemiSpecularColor: BABYLON.Color3.FromHexString(RENDER_CONFIG.lighting.hemiSpecularColor),
       shadowMapSize: RENDER_CONFIG.shadows.mapSize,
       usePercentageCloserFiltering: RENDER_CONFIG.shadows.usePercentageCloserFiltering,
+      studioShadowMapSize: RENDER_CONFIG.shadows.studio.mapSize,
+      useStudioShadows: RENDER_CONFIG.shadows.studio.enabled,
       useGroundProjection: RENDER_CONFIG.environmentBackground.useGroundProjection,
       groundProjectionSize: RENDER_CONFIG.environmentBackground.groundProjectionSize,
       groundProjectionRadius: RENDER_CONFIG.environmentBackground.groundProjectionRadius,
@@ -205,6 +207,11 @@ function App() {
         key: studioLightFromConfig(studioThreePoint.key),
         fill: studioLightFromConfig(studioThreePoint.fill),
         rim: studioLightFromConfig(studioThreePoint.rim),
+        shadows: {
+          key: RENDER_CONFIG.shadows.studio.key,
+          fill: RENDER_CONFIG.shadows.studio.fill,
+          rim: RENDER_CONFIG.shadows.studio.rim,
+        },
       },
     });
 
@@ -221,6 +228,11 @@ function App() {
 
       const avatarRoot = await loadAvatar(scene);
       if (disposed) return;
+      avatarRoot.getChildMeshes(false).forEach(mesh => {
+        if (mesh.isEnabled()) {
+          lightingRigRef.current?.addShadowCaster(mesh);
+        }
+      });
 
       window.avatarRoot = avatarRoot;
       // avatarRoot.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(

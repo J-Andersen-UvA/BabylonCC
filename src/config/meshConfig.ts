@@ -13,20 +13,20 @@ export const EXCLUDED_MESH_NAMES = [
   "cc_base_eye_primitive3",
 ];
 
-export const AVATAR_MATERIAL_CONFIG = {
-  specularIntensity: 0,
-  environmentIntensity: 0.08,
-  roughness: 0.88,
-  metallic: 0,
-};
-
-// More specular studio-test preset:
 // export const AVATAR_MATERIAL_CONFIG = {
-//   specularIntensity: 0.35,
-//   environmentIntensity: 0.25,
-//   roughness: 0.48,
+//   specularIntensity: 0,
+//   environmentIntensity: 0.08,
+//   roughness: 0.88,
 //   metallic: 0,
 // };
+
+// More specular studio-test preset:
+export const AVATAR_MATERIAL_CONFIG = {
+  specularIntensity: 0.35,
+  environmentIntensity: 0.25,
+  roughness: 0.48,
+  metallic: 0,
+};
 
 /**
  * Check if a mesh name matches any exclusion pattern

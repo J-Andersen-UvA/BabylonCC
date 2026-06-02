@@ -32,6 +32,8 @@ export type SetupLightingOptions = {
   contrast?: number;
   shadowMapSize?: number;
   usePercentageCloserFiltering?: boolean;
+  studioShadowMapSize?: number;
+  useStudioShadows?: boolean;
   hemiIntensity?: number;
   hemiGroundColor?: Color3;
   hemiDiffuseColor?: Color3;
@@ -42,6 +44,11 @@ export type SetupLightingOptions = {
     key: StudioLightOptions;
     fill: StudioLightOptions;
     rim: StudioLightOptions;
+    shadows?: {
+      key?: boolean;
+      fill?: boolean;
+      rim?: boolean;
+    };
   };
 };
 
@@ -83,6 +90,8 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
     contrast = 1.0,
     shadowMapSize = 2048,
     usePercentageCloserFiltering = true,
+    studioShadowMapSize = 1024,
+    useStudioShadows = false,
     hemiIntensity = 0.25,
     hemiGroundColor = new Color3(0.15, 0.15, 0.15),
     hemiDiffuseColor = new Color3(1, 1, 1),
@@ -157,8 +166,21 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
   }
 
   const studioLights: SpotLight[] = [];
+  const studioShadowGenerators: ShadowGenerator[] = [];
 
-  const createStudioLight = (name: string, lightOpts: StudioLightOptions, target: Vector3) => {
+  const createShadowGenerator = (light: DirectionalLight | SpotLight, mapSize: number) => {
+    const generator = new ShadowGenerator(mapSize, light);
+    generator.usePercentageCloserFiltering = usePercentageCloserFiltering;
+    generator.filteringQuality = ShadowGenerator.QUALITY_HIGH;
+    return generator;
+  };
+
+  const createStudioLight = (
+    name: string,
+    lightOpts: StudioLightOptions,
+    target: Vector3,
+    castsShadow: boolean
+  ) => {
     const direction = target.subtract(lightOpts.position).normalize();
     const light = new SpotLight(
       name,
@@ -173,16 +195,21 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
     light.diffuse = lightOpts.color;
     light.specular = lightOpts.color;
     studioLights.push(light);
+
+    if (useStudioShadows && castsShadow) {
+      studioShadowGenerators.push(createShadowGenerator(light, studioShadowMapSize));
+    }
   };
 
   if (studioThreePoint && studioThreePoint.enabled !== false) {
-    createStudioLight("studioKey", studioThreePoint.key, studioThreePoint.target);
-    createStudioLight("studioFill", studioThreePoint.fill, studioThreePoint.target);
-    createStudioLight("studioRim", studioThreePoint.rim, studioThreePoint.target);
+    createStudioLight("studioKey", studioThreePoint.key, studioThreePoint.target, !!studioThreePoint.shadows?.key);
+    createStudioLight("studioFill", studioThreePoint.fill, studioThreePoint.target, !!studioThreePoint.shadows?.fill);
+    createStudioLight("studioRim", studioThreePoint.rim, studioThreePoint.target, !!studioThreePoint.shadows?.rim);
   }
 
   const addShadowCaster = (mesh: AbstractMesh) => {
     shadowGenerator.addShadowCaster(mesh);
+    studioShadowGenerators.forEach(generator => generator.addShadowCaster(mesh));
   };
 
   const setShadowReceiver = (mesh: AbstractMesh, receive: boolean) => {
@@ -191,6 +218,7 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
 
   const dispose = () => {
     shadowGenerator.dispose();
+    studioShadowGenerators.forEach(generator => generator.dispose());
     hemi?.dispose();
     studioLights.forEach(light => light.dispose());
     sun.dispose();

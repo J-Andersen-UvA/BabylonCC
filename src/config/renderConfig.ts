@@ -2,7 +2,8 @@ export const RENDER_CONFIG = {
   hardwareScalingLevel: 1,
   clearColor: "#1F242BFF",
   imageProcessing: {
-    toneMappingEnabled: false,
+    toneMappingEnabled: true,
+    // toneMappingEnabled: false,
     exposure: 1.0,
     contrast: 1.0,
   },
@@ -45,6 +46,13 @@ export const RENDER_CONFIG = {
   shadows: {
     mapSize: 2048,
     usePercentageCloserFiltering: true,
+    studio: {
+      enabled: true,
+      mapSize: 1024,
+      key: true,
+      fill: false,
+      rim: true,
+    },
   },
   environmentBackground: {
     useGroundProjection: false,
