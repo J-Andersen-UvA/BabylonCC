@@ -6,6 +6,8 @@ import "./AnimationPlaybar.css";
 type AnimationPlaybarProps = {
   controller: AnimationController | null;
   onBeforePlay?: () => void;
+  onFocusHand?: (side: "left" | "right") => boolean;
+  onResetFocus?: () => void;
 };
 
 type PlayerState = ReturnType<AnimationController["getState"]>;
@@ -21,11 +23,13 @@ function defaultState(): PlayerState {
   };
 }
 
-export function AnimationPlaybar({ controller, onBeforePlay }: AnimationPlaybarProps) {
+export function AnimationPlaybar({ controller, onBeforePlay, onFocusHand, onResetFocus }: AnimationPlaybarProps) {
   const [state, setState] = useState<PlayerState>(defaultState);
+  const [displayFrame, setDisplayFrame] = useState(0);
+  const [trackedHand, setTrackedHand] = useState<"left" | "right" | null>(null);
 
   const speedLabel = useMemo(() => `${state.speedRatio}x`, [state.speedRatio]);
-  const currentFrame = Math.round(state.currentFrame);
+  const currentFrame = Math.round(displayFrame);
   const minFrame = Number.isFinite(state.from) ? state.from : 0;
   const maxFrame = Number.isFinite(state.to) && state.to > minFrame ? state.to : minFrame + 1;
 
@@ -44,6 +48,7 @@ export function AnimationPlaybar({ controller, onBeforePlay }: AnimationPlaybarP
   const seek = (frame: number) => {
     if (!controller || !state.hasAnimation) return;
     controller.seekFrame(frame);
+    setDisplayFrame(frame);
     refresh();
   };
 
@@ -60,6 +65,18 @@ export function AnimationPlaybar({ controller, onBeforePlay }: AnimationPlaybarP
     refresh();
   };
 
+  const toggleHandFocus = (side: "left" | "right") => {
+    if (trackedHand === side) {
+      onResetFocus?.();
+      setTrackedHand(null);
+      return;
+    }
+
+    if (onFocusHand?.(side)) {
+      setTrackedHand(side);
+    }
+  };
+
   useEffect(() => {
     refresh();
     if (!controller) return;
@@ -67,6 +84,24 @@ export function AnimationPlaybar({ controller, onBeforePlay }: AnimationPlaybarP
     const id = window.setInterval(refresh, PLAYER_CONTROLS_CONFIG.pollMs);
     return () => window.clearInterval(id);
   }, [controller]);
+
+  useEffect(() => {
+    if (!state.hasAnimation || !state.isPlaying) {
+      setDisplayFrame(state.currentFrame);
+      return;
+    }
+
+    let frameId = 0;
+    const tick = () => {
+      setDisplayFrame(current =>
+        current + (state.currentFrame - current) * PLAYER_CONTROLS_CONFIG.frameLerp
+      );
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [state.currentFrame, state.hasAnimation, state.isPlaying]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -113,7 +148,7 @@ export function AnimationPlaybar({ controller, onBeforePlay }: AnimationPlaybarP
         min={minFrame}
         max={maxFrame}
         step={1}
-        value={Math.max(minFrame, Math.min(maxFrame, state.currentFrame))}
+        value={Math.max(minFrame, Math.min(maxFrame, displayFrame))}
         disabled={!state.hasAnimation}
         onChange={event => seek(Number(event.target.value))}
       />
@@ -128,6 +163,24 @@ export function AnimationPlaybar({ controller, onBeforePlay }: AnimationPlaybarP
       >
         {speedLabel}
       </button>
+      {PLAYER_CONTROLS_CONFIG.handTracking.enabled && (
+        <div className="animation-playbar-hand-controls">
+          <button
+            type="button"
+            className={`animation-playbar-icon-button ${trackedHand === "left" ? "active" : ""}`}
+            onClick={() => toggleHandFocus("left")}
+          >
+            {PLAYER_CONTROLS_CONFIG.handTracking.labels.left}
+          </button>
+          <button
+            type="button"
+            className={`animation-playbar-icon-button ${trackedHand === "right" ? "active" : ""}`}
+            onClick={() => toggleHandFocus("right")}
+          >
+            {PLAYER_CONTROLS_CONFIG.handTracking.labels.right}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@
   bottom: 18px;
   z-index: 10;
   display: grid;
-  grid-template-columns: 68px minmax(220px, 42vw) 92px 58px;
+  grid-template-columns: 68px minmax(220px, 38vw) 92px 58px auto;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -46,11 +46,34 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
+.animation-playbar-hand-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.animation-playbar-icon-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5f5f5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.animation-playbar-icon-button.active {
+  border-color: #9fd7ff;
+  background: rgba(159, 215, 255, 0.24);
+  color: #ffffff;
+}
+
 @media (max-width: 720px) {
   .animation-playbar {
     right: 12px;
     left: 12px;
-    grid-template-columns: 60px 1fr 78px 52px;
+    grid-template-columns: 60px 1fr 78px 52px auto;
     transform: none;
   }
 }

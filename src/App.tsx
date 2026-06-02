@@ -10,11 +10,12 @@ import { AnimationLoader, type AvatarOrientationPreset } from "./components/Anim
 import { AnimationPlaybar } from "./components/AnimationPlaybar";
 import { BackdropColorPanel } from "./components/BackdropColorPanel";
 import { MorphTargetPanel } from "./components/MorphTargetPanel";
-import { createScene, focusCameraOnAvatar } from "./babylon/createScene";
+import { createScene, focusCameraOnAvatar, focusCameraOnAvatarBone } from "./babylon/createScene";
 import { loadBackdrop } from "./babylon/loadBackdrop";
 import { loadAvatar } from "./babylon/loadAvatar";
 import { createAnimationController } from "./babylon/animationController";
 import { setupLighting } from "./babylon/lighting";
+import { PLAYER_CONTROLS_CONFIG } from "./config/playerControlsConfig";
 import { RENDER_CONFIG } from "./config/renderConfig";
 
 const DEFAULT_AVATAR_ORIENTATION: AvatarOrientationPreset = "xMinus90Y180";
@@ -32,6 +33,7 @@ function App() {
   const sceneRef = useRef<BABYLON.Scene | null>(null);
   const animationControllerRef = useRef<any>(null);
   const lightingRigRef = useRef<ReturnType<typeof setupLighting> | null>(null);
+  const trackedHandRef = useRef<"left" | "right" | null>(null);
 
   const [isReady, setIsReady] = useState(false);
   const [avatarRoot, setAvatarRoot] = useState<BABYLON.TransformNode | null>(null);
@@ -119,6 +121,33 @@ function App() {
     controller.playAll();
   };
 
+  const handleFocusHand = (side: "left" | "right") => {
+    const scene = sceneRef.current;
+    if (!scene || !avatarRoot) return false;
+
+    const handConfig = PLAYER_CONTROLS_CONFIG.handTracking;
+    const focused = focusCameraOnAvatarBone(
+      scene,
+      avatarRoot,
+      side === "left" ? handConfig.leftBoneNames : handConfig.rightBoneNames,
+      {
+        radius: handConfig.focusRadius,
+        targetOffset: handConfig.targetOffset,
+      }
+    );
+    trackedHandRef.current = focused ? side : null;
+
+    return focused;
+  };
+
+  const handleResetCameraFocus = () => {
+    const scene = sceneRef.current;
+    if (!scene || !avatarRoot) return;
+
+    trackedHandRef.current = null;
+    focusCameraOnAvatar(scene, avatarRoot);
+  };
+
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -178,6 +207,23 @@ function App() {
       focusCameraOnAvatar(scene, avatarRoot);
       window.focusAvatarCamera = () => focusCameraOnAvatar(scene, avatarRoot);
 
+      const handFocusObserver = scene.onBeforeRenderObservable.add(() => {
+        const side = trackedHandRef.current;
+        if (!side) return;
+
+        const handConfig = PLAYER_CONTROLS_CONFIG.handTracking;
+        focusCameraOnAvatarBone(
+          scene,
+          avatarRoot,
+          side === "left" ? handConfig.leftBoneNames : handConfig.rightBoneNames,
+          {
+            targetOffset: handConfig.targetOffset,
+            preserveOrbit: true,
+            silent: true,
+          }
+        );
+      });
+
       const controller = await createAnimationController(scene, avatarRoot, {
         autoStart: true,
         speedRatio: 1.0,
@@ -188,6 +234,10 @@ function App() {
 
       setIsReady(true);
       engine.runRenderLoop(() => scene.render());
+
+      return () => {
+        scene.onBeforeRenderObservable.remove(handFocusObserver);
+      };
     };
 
     let cleanupHandlers: null | (() => void) = null;
@@ -230,6 +280,8 @@ function App() {
           <AnimationPlaybar
             controller={animationController}
             onBeforePlay={() => applyAvatarOrientation(DEFAULT_AVATAR_ORIENTATION)}
+            onFocusHand={handleFocusHand}
+            onResetFocus={handleResetCameraFocus}
           />
           <MorphTargetPanel
             avatarRoot={avatarRoot}

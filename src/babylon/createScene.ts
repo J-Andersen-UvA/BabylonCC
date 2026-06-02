@@ -26,11 +26,12 @@ type CameraFocusTarget = {
   source: string;
 };
 
-function findFocusTarget(
+function findFocusTargetByNames(
   scene: BABYLON.Scene,
-  avatarRoot: BABYLON.TransformNode
+  avatarRoot: BABYLON.TransformNode,
+  names: string[]
 ): CameraFocusTarget | null {
-  const focusNames = AVATAR_CAMERA_CONFIG.focusBoneNames.map(name => name.toLowerCase());
+  const focusNames = names.map(name => name.toLowerCase());
 
   for (const skeleton of scene.skeletons) {
     for (const bone of skeleton.bones) {
@@ -57,6 +58,10 @@ function findFocusTarget(
   }
 
   return null;
+}
+
+function findFocusTarget(scene: BABYLON.Scene, avatarRoot: BABYLON.TransformNode): CameraFocusTarget | null {
+  return findFocusTargetByNames(scene, avatarRoot, AVATAR_CAMERA_CONFIG.focusBoneNames);
 }
 
 export function focusCameraOnAvatar(scene: BABYLON.Scene, avatarRoot: BABYLON.TransformNode) {
@@ -93,6 +98,49 @@ export function focusCameraOnAvatar(scene: BABYLON.Scene, avatarRoot: BABYLON.Tr
       scene.skeletons.flatMap(skeleton => skeleton.bones.map(bone => bone.name)).slice(0, 50)
     );
   }
+}
+
+export function focusCameraOnAvatarBone(
+  scene: BABYLON.Scene,
+  avatarRoot: BABYLON.TransformNode,
+  boneNames: string[],
+  options: {
+    radius?: number;
+    targetOffset?: { x: number; y: number; z: number };
+    preserveOrbit?: boolean;
+    silent?: boolean;
+  } = {}
+) {
+  const cam = scene.activeCamera as BABYLON.ArcRotateCamera | null;
+  if (!cam) return false;
+
+  const focusTarget = findFocusTargetByNames(scene, avatarRoot, boneNames);
+  if (!focusTarget) {
+    console.warn("[Camera] hand focus target not found:", boneNames);
+    console.log(
+      "[Camera] available bone sample:",
+      scene.skeletons.flatMap(skeleton => skeleton.bones.map(bone => bone.name)).slice(0, 80)
+    );
+    return false;
+  }
+
+  const targetOffset = options.targetOffset
+    ? vectorFromConfig(options.targetOffset)
+    : BABYLON.Vector3.Zero();
+  const finalTarget = focusTarget.position.add(targetOffset);
+  const alpha = options.preserveOrbit ? cam.alpha : AVATAR_CAMERA_CONFIG.alpha;
+  const beta = options.preserveOrbit ? cam.beta : AVATAR_CAMERA_CONFIG.beta;
+  const radius = options.radius ?? cam.radius;
+
+  cam.setTarget(finalTarget);
+  cam.alpha = alpha;
+  cam.beta = beta;
+  cam.radius = radius;
+
+  if (!options.silent) {
+    console.log("[Camera] hand focused:", focusTarget.source, finalTarget.toString());
+  }
+  return true;
 }
 
 function debugInit(scene: BABYLON.Scene): (e: KeyboardEvent) => void {
