@@ -71,21 +71,30 @@ export async function createAnimationController(
   let currentSpeedRatio = options.speedRatio ?? 1.0;
   let lastFrame = 0;
 
-  function getRanges() {
-    return [skeletalHandler?.getFrameRange?.(), morphHandler?.getFrameRange?.()].filter(Boolean) as Array<{
-      from: number;
-      to: number;
-    }>;
+  type FrameRange = { from: number; to: number };
+
+  function isValidRange(range: FrameRange | null | undefined): range is FrameRange {
+    return !!range && Number.isFinite(range.from) && Number.isFinite(range.to) && range.to > range.from;
   }
 
   function getFrameRange() {
-    const ranges = getRanges();
-    if (!ranges.length) return { from: 0, to: 0 };
+    const skeletalRange = skeletalHandler?.getFrameRange?.();
+    if (isValidRange(skeletalRange)) return skeletalRange;
 
-    return {
-      from: Math.min(...ranges.map(range => range.from)),
-      to: Math.max(...ranges.map(range => range.to)),
-    };
+    const morphRange = morphHandler?.getFrameRange?.();
+    if (isValidRange(morphRange)) return morphRange;
+
+    return { from: 0, to: 0 };
+  }
+
+  function frameToProgress(frame: number, range: FrameRange) {
+    const length = range.to - range.from;
+    if (!Number.isFinite(length) || length <= 0) return 0;
+    return Math.max(0, Math.min(1, (frame - range.from) / length));
+  }
+
+  function progressToFrame(progress: number, range: FrameRange) {
+    return range.from + (range.to - range.from) * Math.max(0, Math.min(1, progress));
   }
 
   function getCurrentFrame() {
@@ -95,7 +104,7 @@ export async function createAnimationController(
   }
 
   function hasAnimation() {
-    return getRanges().length > 0;
+    return isValidRange(skeletalHandler?.getFrameRange?.()) || isValidRange(morphHandler?.getFrameRange?.());
   }
 
   function isPlaying() {
@@ -165,8 +174,18 @@ export async function createAnimationController(
 
     seekFrame: (frame: number) => {
       lastFrame = frame;
-      skeletalHandler?.goToFrame?.(frame);
-      morphHandler?.goToFrame?.(frame);
+      const masterRange = getFrameRange();
+      const progress = frameToProgress(frame, masterRange);
+      const skeletalRange = skeletalHandler?.getFrameRange?.();
+      const morphRange = morphHandler?.getFrameRange?.();
+
+      if (isValidRange(skeletalRange)) {
+        skeletalHandler?.goToFrame?.(progressToFrame(progress, skeletalRange));
+      }
+
+      if (isValidRange(morphRange)) {
+        morphHandler?.goToFrame?.(progressToFrame(progress, morphRange));
+      }
     },
 
     getState: () => {

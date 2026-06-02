@@ -20,6 +20,26 @@ import { RENDER_CONFIG } from "./config/renderConfig";
 
 const DEFAULT_AVATAR_ORIENTATION: AvatarOrientationPreset = "xMinus90Y180";
 
+function vector3FromConfig(value: { x: number; y: number; z: number }) {
+  return new BABYLON.Vector3(value.x, value.y, value.z);
+}
+
+function studioLightFromConfig(light: {
+  position: { x: number; y: number; z: number };
+  intensity: number;
+  color: string;
+  angle: number;
+  exponent: number;
+}) {
+  return {
+    position: vector3FromConfig(light.position),
+    intensity: light.intensity,
+    color: BABYLON.Color3.FromHexString(light.color),
+    angle: light.angle,
+    exponent: light.exponent,
+  };
+}
+
 declare global {
   interface Window {
     BABYLON: any;
@@ -156,6 +176,7 @@ function App() {
     const canvas = canvasRef.current;
     const { engine, scene, dispose: disposeScene } = createScene(canvas);
     sceneRef.current = scene;
+    const studioThreePoint = RENDER_CONFIG.lighting.studioThreePoint;
 
     window.BABYLON = BABYLON;
 
@@ -166,11 +187,7 @@ function App() {
       toneMappingEnabled: RENDER_CONFIG.imageProcessing.toneMappingEnabled,
       iblIntensity: RENDER_CONFIG.lighting.iblIntensity,
       sunIntensity: RENDER_CONFIG.lighting.sunIntensity,
-      sunDirection: new BABYLON.Vector3(
-        RENDER_CONFIG.lighting.sunDirection.x,
-        RENDER_CONFIG.lighting.sunDirection.y,
-        RENDER_CONFIG.lighting.sunDirection.z
-      ),
+      sunDirection: vector3FromConfig(RENDER_CONFIG.lighting.sunDirection),
       useHemiFill: RENDER_CONFIG.lighting.hemiFillEnabled,
       hemiIntensity: RENDER_CONFIG.lighting.hemiIntensity,
       hemiGroundColor: BABYLON.Color3.FromHexString(RENDER_CONFIG.lighting.hemiGroundColor),
@@ -182,6 +199,13 @@ function App() {
       groundProjectionSize: RENDER_CONFIG.environmentBackground.groundProjectionSize,
       groundProjectionRadius: RENDER_CONFIG.environmentBackground.groundProjectionRadius,
       groundProjectionHeight: RENDER_CONFIG.environmentBackground.groundProjectionHeight,
+      studioThreePoint: {
+        enabled: studioThreePoint.enabled,
+        target: vector3FromConfig(studioThreePoint.target),
+        key: studioLightFromConfig(studioThreePoint.key),
+        fill: studioLightFromConfig(studioThreePoint.fill),
+        rim: studioLightFromConfig(studioThreePoint.rim),
+      },
     });
 
     lightingRigRef.current.environmentTexture?.onLoadObservable.addOnce(() => {

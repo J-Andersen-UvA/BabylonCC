@@ -1,6 +1,6 @@
 import * as BABYLON from "@babylonjs/core";
 import "@babylonjs/loaders/glTF";
-import { shouldExcludeMesh } from "../config/meshConfig";
+import { AVATAR_MATERIAL_CONFIG, shouldExcludeMesh } from "../config/meshConfig";
 
 declare global {
   interface Window {
@@ -114,13 +114,19 @@ export async function loadAvatar(scene: BABYLON.Scene): Promise<BABYLON.Transfor
     if (!mat) return;
 
     const name = `${mesh.name} ${mat.name}`.toLowerCase();
+    const materialConfig = AVATAR_MATERIAL_CONFIG;
+
+    mat.specularIntensity = materialConfig.specularIntensity;
+    mat.environmentIntensity = materialConfig.environmentIntensity;
+    mat.roughness = materialConfig.roughness;
+    mat.metallic = materialConfig.metallic;
 
     if (name.includes("hair")) {
       mat.backFaceCulling = true;
       mesh.renderingGroupId = 0;
       mat.transparencyMode = BABYLON.PBRMaterial.PBRMATERIAL_ALPHABLEND;
     } else if (name.includes("beard") || name.includes("brow")) {
-      mat.roughness = 0.6;
+      mat.roughness = Math.max(mat.roughness, 0.6);
     } else if (name.includes("scalp")) {
       mesh.renderingGroupId = 0;
       mesh.alphaIndex = 0;

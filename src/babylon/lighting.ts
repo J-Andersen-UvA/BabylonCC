@@ -10,6 +10,7 @@ import {
   MeshBuilder,
   Scene,
   ShadowGenerator,
+  SpotLight,
   Vector3,
 } from "@babylonjs/core";
 import "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader";
@@ -35,6 +36,21 @@ export type SetupLightingOptions = {
   hemiGroundColor?: Color3;
   hemiDiffuseColor?: Color3;
   hemiSpecularColor?: Color3;
+  studioThreePoint?: {
+    enabled?: boolean;
+    target: Vector3;
+    key: StudioLightOptions;
+    fill: StudioLightOptions;
+    rim: StudioLightOptions;
+  };
+};
+
+type StudioLightOptions = {
+  position: Vector3;
+  intensity: number;
+  color: Color3;
+  angle: number;
+  exponent: number;
 };
 
 export type LightingRig = {
@@ -71,6 +87,7 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
     hemiGroundColor = new Color3(0.15, 0.15, 0.15),
     hemiDiffuseColor = new Color3(1, 1, 1),
     hemiSpecularColor = new Color3(0.2, 0.2, 0.2),
+    studioThreePoint,
   } = opts;
 
   let environmentTexture: CubeTexture | undefined;
@@ -139,6 +156,31 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
     hemi.specular = hemiSpecularColor;
   }
 
+  const studioLights: SpotLight[] = [];
+
+  const createStudioLight = (name: string, lightOpts: StudioLightOptions, target: Vector3) => {
+    const direction = target.subtract(lightOpts.position).normalize();
+    const light = new SpotLight(
+      name,
+      lightOpts.position,
+      direction,
+      lightOpts.angle,
+      lightOpts.exponent,
+      scene
+    );
+
+    light.intensity = lightOpts.intensity;
+    light.diffuse = lightOpts.color;
+    light.specular = lightOpts.color;
+    studioLights.push(light);
+  };
+
+  if (studioThreePoint && studioThreePoint.enabled !== false) {
+    createStudioLight("studioKey", studioThreePoint.key, studioThreePoint.target);
+    createStudioLight("studioFill", studioThreePoint.fill, studioThreePoint.target);
+    createStudioLight("studioRim", studioThreePoint.rim, studioThreePoint.target);
+  }
+
   const addShadowCaster = (mesh: AbstractMesh) => {
     shadowGenerator.addShadowCaster(mesh);
   };
@@ -150,6 +192,7 @@ export function setupLighting(scene: Scene, opts: SetupLightingOptions = {}): Li
   const dispose = () => {
     shadowGenerator.dispose();
     hemi?.dispose();
+    studioLights.forEach(light => light.dispose());
     sun.dispose();
     backgroundMaterial?.dispose();
     skybox?.dispose();
