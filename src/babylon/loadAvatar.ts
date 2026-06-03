@@ -1,6 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import "@babylonjs/loaders/glTF";
 import { AVATAR_MATERIAL_CONFIG, shouldExcludeMesh } from "../config/meshConfig";
+import type { AvatarSelectionConfig } from "../config/avatarSelectionConfig";
 
 declare global {
   interface Window {
@@ -59,8 +60,22 @@ function buildAvatarMorphMapImpl(avatarRoot: any) {
 
 window.buildAvatarMorphMap = buildAvatarMorphMapImpl;
 
-export async function loadAvatar(scene: BABYLON.Scene): Promise<BABYLON.TransformNode> {
-  const result = await BABYLON.SceneLoader.ImportMeshAsync("", "/", "PalmerPolo.glb", scene);
+function splitPublicAssetUrl(url: string) {
+  const normalizedUrl = url.startsWith("/") ? url : `/${url}`;
+  const slashIndex = normalizedUrl.lastIndexOf("/");
+
+  return {
+    rootUrl: normalizedUrl.slice(0, slashIndex + 1),
+    sceneFilename: normalizedUrl.slice(slashIndex + 1),
+  };
+}
+
+export async function loadAvatar(
+  scene: BABYLON.Scene,
+  avatar: AvatarSelectionConfig
+): Promise<BABYLON.TransformNode> {
+  const { rootUrl, sceneFilename } = splitPublicAssetUrl(avatar.glbUrl);
+  const result = await BABYLON.SceneLoader.ImportMeshAsync("", rootUrl, sceneFilename, scene);
 
   const avatarRoot = new BABYLON.TransformNode("Avatar", scene);
   const importedNodes = [
@@ -85,6 +100,7 @@ export async function loadAvatar(scene: BABYLON.Scene): Promise<BABYLON.Transfor
     });
   }
 
+  console.log("[Avatar] loaded:", avatar.name, avatar.glbUrl);
   console.log("[Avatar] imported meshes:", result.meshes.length);
   console.log("[Avatar] imported transformNodes:", result.transformNodes.length);
   console.log(

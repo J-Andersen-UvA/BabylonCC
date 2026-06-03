@@ -8,6 +8,7 @@ import "./index.css";
 import type { AnimationController } from "./babylon/animationController";
 import { AnimationLoader, type AvatarOrientationPreset } from "./components/AnimationLoader";
 import { AnimationPlaybar } from "./components/AnimationPlaybar";
+import { AvatarSelectScreen } from "./components/AvatarSelectScreen";
 import { BackdropColorPanel } from "./components/BackdropColorPanel";
 import { MorphTargetPanel } from "./components/MorphTargetPanel";
 import { createScene, focusCameraOnAvatar, focusCameraOnAvatarBone } from "./babylon/createScene";
@@ -15,6 +16,11 @@ import { loadBackdrop } from "./babylon/loadBackdrop";
 import { loadAvatar } from "./babylon/loadAvatar";
 import { createAnimationController } from "./babylon/animationController";
 import { setupLighting } from "./babylon/lighting";
+import {
+  AVATAR_DEFAULT_STORAGE_KEY,
+  getAvatarById,
+  type AvatarSelectionConfig,
+} from "./config/avatarSelectionConfig";
 import { PLAYER_CONTROLS_CONFIG } from "./config/playerControlsConfig";
 import { RENDER_CONFIG } from "./config/renderConfig";
 
@@ -57,6 +63,9 @@ function App() {
 
   const [isReady, setIsReady] = useState(false);
   const [avatarRoot, setAvatarRoot] = useState<BABYLON.TransformNode | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState<AvatarSelectionConfig | null>(() =>
+    getAvatarById(localStorage.getItem(AVATAR_DEFAULT_STORAGE_KEY))
+  );
   const [backdropMaterial, setBackdropMaterial] = useState<BABYLON.PBRMaterial | null>(null);
   const [animationController, setAnimationController] = useState<AnimationController | null>(null);
 
@@ -169,7 +178,7 @@ function App() {
   };
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !selectedAvatar) return;
 
     let disposed = false;
 
@@ -226,7 +235,7 @@ function App() {
       if (disposed) return;
       setBackdropMaterial(backdrop.material);
 
-      const avatarRoot = await loadAvatar(scene);
+      const avatarRoot = await loadAvatar(scene, selectedAvatar);
       if (disposed) return;
       avatarRoot.getChildMeshes(false).forEach(mesh => {
         if (mesh.isEnabled()) {
@@ -299,13 +308,30 @@ function App() {
       scene.dispose();
       engine.dispose();
     };
-  }, []);
+  }, [selectedAvatar]);
+
+  const handleChangeAvatar = () => {
+    setIsReady(false);
+    setAvatarRoot(null);
+    setBackdropMaterial(null);
+    setAnimationController(null);
+    animationControllerRef.current = null;
+    trackedHandRef.current = null;
+    setSelectedAvatar(null);
+  };
+
+  if (!selectedAvatar) {
+    return <AvatarSelectScreen onSelect={setSelectedAvatar} />;
+  }
 
   return (
     <>
-      <canvas ref={canvasRef} />
+      <canvas key={selectedAvatar.id} ref={canvasRef} />
       {isReady && (
         <>
+          <button type="button" className="avatar-change-button" onClick={handleChangeAvatar}>
+            Change Avatar
+          </button>
           <AnimationLoader
             onSkeletalLoad={handleSkeletalLoad}
             onBlendshapeLoad={handleBlendshapeLoad}

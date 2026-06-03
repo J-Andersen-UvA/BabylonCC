@@ -17,10 +17,10 @@ export const RENDER_CONFIG = {
     hemiDiffuseColor: "#FFFFFF",
     hemiSpecularColor: "#333333",
   },
-  shadows: {
-    mapSize: 2048,
-    usePercentageCloserFiltering: true,
-  },
+  // shadows: {
+  //   mapSize: 2048,
+  //   usePercentageCloserFiltering: true,
+  // },
   environmentBackground: {
     useGroundProjection: false,
     groundProjectionSize: 1000,

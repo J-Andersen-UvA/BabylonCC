@@ -13,7 +13,8 @@ export async function loadBackdrop(scene: BABYLON.Scene): Promise<BackdropLoadRe
   const importedNodes = [...result.transformNodes, ...result.meshes] as BABYLON.Node[];
   const importedNodeSet = new Set(importedNodes);
 
-  backdropMaterial.albedoColor = new BABYLON.Color3(0.35, 0.31, 0.27);
+  // backdropMaterial.albedoColor = new BABYLON.Color3(0.35, 0.31, 0.27);
+  backdropMaterial.albedoColor = BABYLON.Color3.FromHexString("#36383b");
   backdropMaterial.roughness = 0.92;
   backdropMaterial.metallic = 0;
   backdropMaterial.specularIntensity = 0.18;

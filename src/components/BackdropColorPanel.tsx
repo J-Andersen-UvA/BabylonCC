@@ -1,7 +1,7 @@
 import * as BABYLON from "@babylonjs/core";
 import "./BackdropColorPanel.css";
 
-const SWATCHES = ["#59524a", "#6b6964", "#7c817d", "#4c5a60", "#74665f", "#36383b"];
+const SWATCHES = ["#36383b", "#59524a", "#6b6964", "#7c817d", "#4c5a60", "#74665f"];
 
 function color3ToHex(color: BABYLON.Color3) {
   return color.toHexString();
