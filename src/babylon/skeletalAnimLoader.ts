@@ -37,6 +37,9 @@ declare global {
       isPlaying: () => boolean;
       list: () => string[];
       loadFile: (file: File, options?: HandleFileOptions) => Promise<LoadResult | undefined>;
+      loadIdlePath: (path: string) => Promise<LoadResult | undefined>;
+      playIdle: () => void;
+      stopIdle: () => void;
     };
     buildAvatarMorphMap?: (avatarRoot: any) => Map<string, BABYLON.MorphTarget[]>;
     findRetargetMorphTargets?: (maps: AvatarMaps, target: BABYLON.MorphTarget) => BABYLON.MorphTarget[];
@@ -201,6 +204,22 @@ async function loadDroppedFile(scene: BABYLON.Scene, file: File) {
   return BABYLON.SceneLoader.LoadAssetContainerAsync("file:", file, scene);
 }
 
+function splitAssetPath(path: string) {
+  const normalizedPath = path.replace(/\\/g, "/");
+  const publicPath = normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`;
+  const slashIndex = publicPath.lastIndexOf("/");
+
+  return {
+    rootUrl: publicPath.slice(0, slashIndex + 1),
+    sceneFilename: publicPath.slice(slashIndex + 1),
+  };
+}
+
+async function loadAnimationPath(scene: BABYLON.Scene, path: string) {
+  const { rootUrl, sceneFilename } = splitAssetPath(path);
+  return BABYLON.SceneLoader.LoadAssetContainerAsync(rootUrl, sceneFilename, scene);
+}
+
 function stopAndDispose(groups: BABYLON.AnimationGroup[]) {
   for (const group of groups) {
     try {
@@ -265,6 +284,7 @@ export function setupSkeletalAnimLoader(scene: BABYLON.Scene, avatarRoot: any, o
   debugAvatarMorphs(avatarRoot, maps);
 
   let currentGroups: BABYLON.AnimationGroup[] = [];
+  let idleGroups: BABYLON.AnimationGroup[] = [];
   let lastFrame = 0;
 
   function getFrameRange() {
@@ -294,6 +314,76 @@ export function setupSkeletalAnimLoader(scene: BABYLON.Scene, avatarRoot: any, o
     return Number.isFinite(lastFrame) ? lastFrame : null;
   }
 
+  function retargetContainer(
+    container: BABYLON.AssetContainer,
+    mergedOpts: SetupOptions,
+    label: string
+  ) {
+    const srcGroups = container.animationGroups || [];
+    if (!srcGroups.length) {
+      container.dispose();
+      console.warn(`[${label}] No animations found`);
+      return undefined;
+    }
+
+    for (const group of srcGroups) {
+      let bone = 0,
+        morph = 0,
+        node = 0,
+        other = 0;
+      for (const ta of group.targetedAnimations) {
+        const t = ta.target as any;
+        const cls = t?.getClassName?.();
+        if (cls === "Bone") bone++;
+        else if (cls === "MorphTarget") morph++;
+        else if (t?.name) node++;
+        else other++;
+      }
+      console.log(
+        `[${label}] group="${group.name}" targetedAnimations=${group.targetedAnimations.length} bone=${bone} morph=${morph} node=${node} other=${other}`
+      );
+    }
+
+    const sample = srcGroups[0].targetedAnimations
+      .filter(ta => ta.target?.getClassName?.() === "MorphTarget")
+      .slice(0, 30)
+      .map(ta => (ta.target as any).name);
+    console.log("[Drop] morph target sample:", sample);
+
+    const retargetedGroups: BABYLON.AnimationGroup[] = [];
+    for (const group of srcGroups) {
+      const rg = retargetAnimationGroup(group, maps, mergedOpts);
+      retargetedGroups.push(rg);
+    }
+
+    const first = retargetedGroups[0];
+    if (first) {
+      console.log(`[Retarget] firstGroup="${first.name}" targetedAnimations=${first.targetedAnimations.length}`);
+      first.targetedAnimations.slice(0, 30).forEach(ta => {
+        const t = ta.target as any;
+        console.log(
+          "[Retarget] targetClass=",
+          t?.getClassName?.(),
+          "targetName=",
+          t?.name,
+          "prop=",
+          ta.animation?.targetProperty
+        );
+      });
+    }
+
+    container.dispose();
+
+    console.log(`[${label}] Loaded ${retargetedGroups.length} anim group(s)`);
+    const durationSeconds = Math.max(...retargetedGroups.map(groupDurationSeconds), 0);
+    console.log("[AnimLoader] skeletal duration seconds:", durationSeconds);
+
+    return {
+      groups: retargetedGroups,
+      result: { groupCount: retargetedGroups.length, durationSeconds },
+    };
+  }
+
   async function handleFile(file: File, fileOpts: HandleFileOptions = {}) {
     console.log("[Drop] file=", file);
     if (!file) return;
@@ -313,67 +403,37 @@ export function setupSkeletalAnimLoader(scene: BABYLON.Scene, avatarRoot: any, o
       return;
     }
 
-    const srcGroups = container.animationGroups || [];
-    if (!srcGroups.length) {
-      container.dispose();
-      console.warn("[Drop] No animations found in file");
+    const retargeted = retargetContainer(container, mergedOpts, "Drop");
+    if (!retargeted) return;
+
+    stopAndDispose(currentGroups);
+    currentGroups = retargeted.groups;
+
+    return retargeted.result;
+  }
+
+  async function loadIdlePath(path: string) {
+    console.log("[Idle] loading:", path);
+
+    let container: BABYLON.AssetContainer;
+    try {
+      container = await loadAnimationPath(scene, path);
+    } catch (e) {
+      console.error("[Idle] failed to load:", path, e);
       return;
     }
 
-    for (const group of srcGroups) {
-      let bone = 0,
-        morph = 0,
-        node = 0,
-        other = 0;
-      for (const ta of group.targetedAnimations) {
-        const t = ta.target as any;
-        const cls = t?.getClassName?.();
-        if (cls === "Bone") bone++;
-        else if (cls === "MorphTarget") morph++;
-        else if (t?.name) node++;
-        else other++;
-      }
-      console.log(
-        `[Drop] group="${group.name}" targetedAnimations=${group.targetedAnimations.length} bone=${bone} morph=${morph} node=${node} other=${other}`
-      );
-    }
+    const retargeted = retargetContainer(container, opts, "Idle");
+    if (!retargeted) return;
 
-    const sample = srcGroups[0].targetedAnimations
-      .filter(ta => ta.target?.getClassName?.() === "MorphTarget")
-      .slice(0, 30)
-      .map(ta => (ta.target as any).name);
-    console.log("[Drop] morph target sample:", sample);
+    stopAndDispose(idleGroups);
+    idleGroups = retargeted.groups;
+    idleGroups.forEach(group => {
+      group.loopAnimation = true;
+      group.speedRatio = opts.speedRatio ?? 1.0;
+    });
 
-    stopAndDispose(currentGroups);
-    currentGroups = [];
-
-    for (const group of srcGroups) {
-      const rg = retargetAnimationGroup(group, maps, mergedOpts);
-      currentGroups.push(rg);
-    }
-
-    const first = currentGroups[0];
-    if (first) {
-      console.log(`[Retarget] firstGroup="${first.name}" targetedAnimations=${first.targetedAnimations.length}`);
-      first.targetedAnimations.slice(0, 30).forEach(ta => {
-        const t = ta.target as any;
-        console.log(
-          "[Retarget] targetClass=",
-          t?.getClassName?.(),
-          "targetName=",
-          t?.name,
-          "prop=",
-          ta.animation?.targetProperty
-        );
-      });
-    }
-
-    container.dispose();
-
-    console.log(`[Drop] Loaded ${currentGroups.length} anim group(s)`);
-    const durationSeconds = Math.max(...currentGroups.map(groupDurationSeconds), 0);
-    console.log("[AnimLoader] skeletal duration seconds:", durationSeconds);
-    return { groupCount: currentGroups.length, durationSeconds };
+    return retargeted.result;
   }
 
   return {
@@ -391,6 +451,9 @@ export function setupSkeletalAnimLoader(scene: BABYLON.Scene, avatarRoot: any, o
       currentGroups.forEach(group => {
         group.speedRatio = speedRatio;
       });
+      idleGroups.forEach(group => {
+        group.speedRatio = speedRatio;
+      });
     },
     goToFrame: (frame: number) => {
       lastFrame = frame;
@@ -401,6 +464,12 @@ export function setupSkeletalAnimLoader(scene: BABYLON.Scene, avatarRoot: any, o
     isPlaying: () => currentGroups.some(group => group.isPlaying),
     list: () => currentGroups.map(group => group.name),
     loadFile: handleFile,
+    loadIdlePath,
+    playIdle: () => {
+      idleGroups.forEach(group => group.play(true));
+      if (idleGroups.length) console.log("[Idle] playing:", idleGroups.map(group => group.name));
+    },
+    stopIdle: () => idleGroups.forEach(group => group.stop()),
   };
 }
 

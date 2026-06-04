@@ -16,6 +16,7 @@ import { loadBackdrop } from "./babylon/loadBackdrop";
 import { loadAvatar } from "./babylon/loadAvatar";
 import { createAnimationController } from "./babylon/animationController";
 import { setupLighting } from "./babylon/lighting";
+import { snapAvatarToCameraInRightAngles } from "./babylon/orientAvatarToCamera";
 import {
   AVATAR_DEFAULT_STORAGE_KEY,
   getAvatarById,
@@ -103,12 +104,19 @@ function App() {
     }
   };
 
-  const applyAvatarOrientation = (preset: AvatarOrientationPreset) => {
-    if (!avatarRoot) return;
+  const applyAvatarOrientationToRoot = (
+    root: BABYLON.TransformNode | null,
+    preset: AvatarOrientationPreset
+  ) => {
+    if (!root) return;
 
     const euler = orientationToEuler(preset);
-    avatarRoot.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(euler);
+    root.rotationQuaternion = BABYLON.Quaternion.FromEulerVector(euler);
     console.log("[Avatar] orientation preset:", preset, euler.toString());
+  };
+
+  const applyAvatarOrientation = (preset: AvatarOrientationPreset) => {
+    applyAvatarOrientationToRoot(avatarRoot, preset);
   };
 
   const handleOrientationChange = (preset: AvatarOrientationPreset) => {
@@ -269,11 +277,23 @@ function App() {
         );
       });
 
+      if (selectedAvatar.idleAnimationPath) {
+        applyAvatarOrientationToRoot(avatarRoot, DEFAULT_AVATAR_ORIENTATION);
+      }
+
       const controller = await createAnimationController(scene, avatarRoot, {
         autoStart: true,
         speedRatio: 1.0,
         jumpKey: "j",
+        idleAnimationPath: selectedAvatar.idleAnimationPath,
       });
+
+      if (selectedAvatar.idleAnimationPath) {
+        scene.onAfterRenderObservable.addOnce(() => {
+          snapAvatarToCameraInRightAngles(scene, avatarRoot);
+        });
+      }
+
       animationControllerRef.current = controller;
       setAnimationController(controller);
 

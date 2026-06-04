@@ -5,6 +5,7 @@ interface AnimationControllerOptions {
   autoStart?: boolean;
   speedRatio?: number;
   jumpKey?: string;
+  idleAnimationPath?: string;
 }
 
 interface SkeletalLoadOptions {
@@ -71,6 +72,14 @@ export async function createAnimationController(
   let currentSpeedRatio = options.speedRatio ?? 1.0;
   let lastFrame = 0;
 
+  async function loadIdle() {
+    if (!options.idleAnimationPath) return;
+    await skeletalHandler?.loadIdlePath?.(options.idleAnimationPath);
+    skeletalHandler?.playIdle?.();
+  }
+
+  await loadIdle();
+
   type FrameRange = { from: number; to: number };
 
   function isValidRange(range: FrameRange | null | undefined): range is FrameRange {
@@ -118,6 +127,7 @@ export async function createAnimationController(
         return;
       }
 
+      skeletalHandler?.stopIdle?.();
       console.log("[AnimLoader] Loading skeletal animation:", file.name);
       if (loadOptions?.scaleMultiplier) {
         console.log("[AnimLoader] Skeletal scale multiplier:", loadOptions.scaleMultiplier);
@@ -136,6 +146,7 @@ export async function createAnimationController(
         return;
       }
 
+      skeletalHandler?.stopIdle?.();
       console.log("[AnimLoader] Loading blendshape animation:", file.name);
       return await morphHandler.loadFile(file, {
         targetDurationSeconds: lastSkeletalDurationSeconds,
