@@ -22,10 +22,51 @@ export const EXCLUDED_MESH_NAMES = [
 
 // More specular studio-test preset:
 export const AVATAR_MATERIAL_CONFIG = {
-  specularIntensity: 0.35,
+  specularIntensity: 0.15,
   environmentIntensity: 0.25,
   roughness: 0.48,
   metallic: 0,
+};
+
+export const AVATAR_MATERIAL_RULES = {
+  alphaBlendRules: [
+    {
+      nameIncludes: [
+        "hair",
+      ],
+      backFaceCulling: true,
+      renderingGroupId: 0,
+    },
+    {
+      nameIncludes: [
+        "eyelash",
+      ],
+    },
+  ],
+  opaqueFallback: true,
+  roughnessOverrides: [
+    {
+      nameIncludes: [
+        "ss_slash_neck_top",
+      ],
+      minimumRoughness: 0.64,
+    },
+    {
+      nameIncludes: [
+        "beard",
+        "brow",
+        "female_angled"
+      ],
+      minimumRoughness: 0.6,
+    },
+  ],
+  scalp: {
+    nameIncludes: [
+      "scalp",
+    ],
+    renderingGroupId: 0,
+    alphaIndex: 0,
+  },
 };
 
 /**

@@ -1,6 +1,10 @@
 import * as BABYLON from "@babylonjs/core";
 import "@babylonjs/loaders/glTF";
-import { AVATAR_MATERIAL_CONFIG, shouldExcludeMesh } from "../config/meshConfig";
+import {
+  AVATAR_MATERIAL_CONFIG,
+  AVATAR_MATERIAL_RULES,
+  shouldExcludeMesh,
+} from "../config/meshConfig";
 import type { AvatarSelectionConfig } from "../config/avatarSelectionConfig";
 
 declare global {
@@ -137,19 +141,30 @@ export async function loadAvatar(
     mat.roughness = materialConfig.roughness;
     mat.metallic = materialConfig.metallic;
 
-    if (name.includes("hair")) {
-      mat.backFaceCulling = true;
-      mesh.renderingGroupId = 0;
+    const alphaBlendRule = AVATAR_MATERIAL_RULES.alphaBlendRules.find(rule =>
+      rule.nameIncludes.some(token => name.includes(token))
+    );
+    const roughnessRule = AVATAR_MATERIAL_RULES.roughnessOverrides.find(rule =>
+      rule.nameIncludes.some(token => name.includes(token))
+    );
+
+    if (alphaBlendRule) {
+      if (typeof alphaBlendRule.backFaceCulling === "boolean") {
+        mat.backFaceCulling = alphaBlendRule.backFaceCulling;
+      }
+      if (typeof alphaBlendRule.renderingGroupId === "number") {
+        mesh.renderingGroupId = alphaBlendRule.renderingGroupId;
+      }
       mat.transparencyMode = BABYLON.PBRMaterial.PBRMATERIAL_ALPHABLEND;
-    } else if (name.includes("beard") || name.includes("brow")) {
-      mat.roughness = Math.max(mat.roughness, 0.6);
-    } else if (name.includes("scalp")) {
-      mesh.renderingGroupId = 0;
-      mesh.alphaIndex = 0;
-    } else if (name.includes("eyelash")) {
-      mat.transparencyMode = BABYLON.PBRMaterial.PBRMATERIAL_ALPHABLEND;
+    } else if (roughnessRule) {
+      mat.roughness = Math.max(mat.roughness, roughnessRule.minimumRoughness);
+    } else if (AVATAR_MATERIAL_RULES.scalp.nameIncludes.some(token => name.includes(token))) {
+      mesh.renderingGroupId = AVATAR_MATERIAL_RULES.scalp.renderingGroupId;
+      mesh.alphaIndex = AVATAR_MATERIAL_RULES.scalp.alphaIndex;
     } else {
-      mat.transparencyMode = BABYLON.PBRMaterial.PBRMATERIAL_OPAQUE;
+      if (AVATAR_MATERIAL_RULES.opaqueFallback) {
+        mat.transparencyMode = BABYLON.PBRMaterial.PBRMATERIAL_OPAQUE;
+      }
     }
   });
 
